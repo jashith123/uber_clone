@@ -16,3 +16,4 @@ client/android/.gradle/
 client/android/local.properties
 client/android/keystore/
 client/android/capacitor-cordova-android-plugins/
+dist-apk/
