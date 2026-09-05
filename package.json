@@ -1,0 +1,24 @@
+{
+  "name": "swiftride",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Ride hailing where the customer picks the route and pays per kilometre. Web + installable PWA, Node API, SQLite.",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n server,client -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "seed": "npm --prefix server run seed",
+    "test": "npm --prefix server test",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "serve": "npm run build && npm start",
+    "icons": "node client/scripts/make-icons.mjs",
+    "tunnel": "npx --yes localtunnel --port 4000",
+    "tunnel:dev": "npx --yes localtunnel --port 5173",
+    "docker:up": "docker compose up --build -d",
+    "docker:logs": "docker compose logs -f",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
