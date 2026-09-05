@@ -286,3 +286,18 @@ Requested after the first delivery: Docker, website **and** installable app, cha
 ### Name ideas
 
 The code name is SwiftRide. Options that fit "your route, your fare": **Waypoint**, **Apna Rasta** ("your own road"), **Marg** / **MargGo**, **Meterly**, **KiloRide**, **TrueFare**, **Pathly**, **RouteMate**. Rename via `client/src/lib/brand.ts`, the manifest, and the page title.
+
+---
+
+## 14. Phase 3: Android APK
+
+The user has Android Studio, so the web app was wrapped into a native Android app with Capacitor 7.
+
+- `client/capacitor.config.ts`: app id `com.swiftride.app`, bundles `client/dist`, mixed content allowed so the app (origin `https://localhost`) can call the PC's plain-HTTP API during testing.
+- `client/android/`: generated Android project. Manifest adds location and microphone permissions and `usesCleartextTraffic`. Launcher icons at every density are generated from the brand design (`client/scripts/make-android-icons.mjs`).
+- Release signing with a throwaway development keystore (`client/android/keystore/`, ignored by git; password `swiftride123`). Replace it before any store release.
+- The API address is no longer hard-coded as relative: `apiBase()` in `client/src/lib/api.ts` uses the address typed on the login screen, else the `VITE_API_URL` baked in at build time (`http://192.168.29.217:4000` for this APK), else same-origin. The website build stays relative.
+- The server now also accepts the native origins `https://localhost` and `capacitor://localhost`.
+- Build: `npm run android:build` (bakes the API URL, syncs assets, runs Gradle `assembleRelease`). Gradle 8.14.3 from Android Studio's cache is used because downloading a fresh distribution timed out on this network.
+- Output copied to `dist-apk/SwiftRide-release.apk`. Install steps and the server-address workflow are in the testing guide, Option C.
+- Not built: iOS (needs a Mac with Xcode; the same Capacitor project supports `npx cap add ios`).

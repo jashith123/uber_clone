@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { apiBase, isNativeApp, setApiBase } from '../lib/api';
 
 export default function Login() {
   const { login } = useAuth();
@@ -10,12 +11,15 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showServer, setShowServer] = useState(isNativeApp());
+  const [server, setServer] = useState(apiBase());
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      setApiBase(server);
       const user = await login(email, password);
       nav(params.get('next') || (user.role === 'driver' ? '/drive' : '/ride'), { replace: true });
     } catch (err) {
@@ -38,6 +42,17 @@ export default function Login() {
           Password
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
+        {showServer ? (
+          <label>
+            Server address
+            <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://192.168.29.217:4000 or https://xxx.loca.lt" inputMode="url" />
+            <small className="muted">The PC running "npm run serve", or the tunnel URL. Leave empty on the website.</small>
+          </label>
+        ) : (
+          <button type="button" className="link" onClick={() => setShowServer(true)}>
+            Advanced: set server address
+          </button>
+        )}
         {error && <div className="error">{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Logging in…' : 'Log in'}

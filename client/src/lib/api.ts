@@ -1,4 +1,35 @@
 const TOKEN_KEY = 'swiftride.token';
+const BASE_KEY = 'swiftride.apiBase';
+
+/**
+ * Where the API lives.
+ *  - Web build served by the API itself: '' (relative URLs, same origin).
+ *  - Native app (APK): the value typed on the login screen, else the URL baked
+ *    in at build time with VITE_API_URL (e.g. http://192.168.29.217:4000).
+ */
+export function apiBase(): string {
+  try {
+    const saved = localStorage.getItem(BASE_KEY);
+    if (saved) return saved.replace(/\/+$/, '');
+  } catch {
+    /* storage unavailable */
+  }
+  return (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+}
+
+export function setApiBase(url: string | null) {
+  try {
+    if (url && url.trim()) localStorage.setItem(BASE_KEY, url.trim().replace(/\/+$/, ''));
+    else localStorage.removeItem(BASE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** True when running inside the Capacitor native shell (APK / IPA). */
+export function isNativeApp(): boolean {
+  return Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+}
 
 export function getToken(): string | null {
   try {
@@ -33,15 +64,21 @@ interface Options {
 
 export async function api<T>(path: string, { method = 'GET', body, signal }: Options = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
-    method,
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}/api${path}`, {
+      method,
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    throw new ApiError(0, `Cannot reach the server at ${apiBase() || window.location.origin}. Check the server address and that the PC is running "npm run serve".`);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error || res.statusText);
   return data as T;

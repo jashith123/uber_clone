@@ -1,22 +1,24 @@
 import { io, type Socket } from 'socket.io-client';
-import { getToken } from './api';
+import { apiBase, getToken } from './api';
 
 let socket: Socket | null = null;
-let socketToken: string | null = null;
+let socketKey: string | null = null;
 
-/** Lazily create one authenticated socket per session. */
+/** Lazily create one authenticated socket per session (re-created if token or server changes). */
 export function getSocket(): Socket | null {
   const token = getToken();
   if (!token) return null;
-  if (socket && socketToken === token) return socket;
+  const base = apiBase();
+  const key = `${base}|${token}`;
+  if (socket && socketKey === key) return socket;
   socket?.disconnect();
-  socket = io('/', { auth: { token }, transports: ['websocket', 'polling'] });
-  socketToken = token;
+  socket = io(base || '/', { auth: { token }, transports: ['websocket', 'polling'] });
+  socketKey = key;
   return socket;
 }
 
 export function disconnectSocket() {
   socket?.disconnect();
   socket = null;
-  socketToken = null;
+  socketKey = null;
 }

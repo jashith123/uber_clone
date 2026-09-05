@@ -8,3 +8,11 @@ dist/
 .DS_Store
 .playwright-mcp/
 *.tsbuildinfo
+
+# Android build artefacts and signing key
+client/android/app/build/
+client/android/build/
+client/android/.gradle/
+client/android/local.properties
+client/android/keystore/
+client/android/capacitor-cordova-android-plugins/

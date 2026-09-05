@@ -86,6 +86,27 @@ You now have a SwiftRide icon that opens full screen without browser chrome, lik
 
 What this is and is not: this is a Progressive Web App. It installs from the browser, updates itself when you redeploy, and needs no app store. It is not an APK/IPA file. Building a store-ready native package (Capacitor wrap or React Native) needs Android Studio / Xcode and is listed under "next steps" in the build report.
 
+### Option C: the Android APK (native app)
+
+A signed APK is in `dist-apk/SwiftRide-release.apk`. It bundles the whole UI and talks to your PC's server.
+
+1. Copy the APK to each Android phone (WhatsApp to yourself, USB, Google Drive, or `adb install dist-apk/SwiftRide-release.apk`).
+2. Open it; allow "Install unknown apps" when Android asks. It is signed with a development key, so Play Protect may show a warning the first time: choose "Install anyway".
+3. Start the server on the PC: `npm run serve`.
+4. On the login screen the app shows a **Server address** field, pre-filled with `http://192.168.29.217:4000` (the PC's Wi-Fi address when the APK was built). Phones must be on the same Wi-Fi. If the PC's address changed, type the new one. For testing away from home Wi-Fi, run `npm run tunnel` on the PC and enter the `https://...` address instead.
+5. Log in. GPS and microphone work in the APK on plain HTTP (the app is a secure context), so in-app calls and real driver GPS can be tested without a tunnel, as long as both phones can reach the PC.
+
+Rebuild the APK after code changes (needs Android Studio installed):
+
+```bash
+npm run android:build                       # bakes in 192.168.29.217:4000, builds a signed release APK
+SWIFTRIDE_API_URL=http://10.0.0.5:4000 npm run android:build   # different default server
+```
+
+Output: `client/android/app/build/outputs/apk/release/app-release.apk`. Copy it to `dist-apk/`. To open the project in Android Studio: `npm run android:open`.
+
+The signing key in `client/android/keystore/` is a throwaway development key (password `swiftride123`). Generate your own before publishing to the Play Store and keep it out of git (it is already ignored).
+
 ---
 
 ## 3. Test scenarios
@@ -194,7 +215,7 @@ docker compose down              # stop (data stays in the swiftride-data volume
 
 ## 6. Known limits of this version
 
-- Native store packages (APK / IPA) are not produced. The PWA is the multi-device test vehicle.
+- The Android APK is a development build signed with a throwaway key (not Play Store ready). No iOS build: that needs a Mac with Xcode.
 - In-app calls use a public STUN server only. Most home/office networks work; strict corporate or carrier NATs need a TURN server (coturn or a hosted one), which is a config change in `client/src/components/Comms.tsx`.
 - Routing and geocoding use public demo servers with rate limits.
 - Payments are recorded, not charged.
