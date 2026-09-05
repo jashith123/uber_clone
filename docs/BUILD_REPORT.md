@@ -313,3 +313,11 @@ The user has Android Studio, so the web app was wrapped into a native Android ap
 - **Theme**: at the user's request the palette went back to the original black-and-white look. All colours are CSS variables in `:root`, so switching palettes is a one-block change.
 - **Emulator test**: the APK was installed on the Android Studio emulator (Medium Phone, API 36.1). It reached the PC's API over the LAN address, logged in, showed the live map with nearby cars, and computed routes and quotes for a real address search. Screenshots in `docs/screenshots/emulator/`.
 - **Git**: the project is pushed to https://github.com/jashith123/uber_clone (branch `master`).
+
+---
+
+## 16. Phase 5: persistent sessions, role-locked login, instant place suggestions
+
+- **Stay logged in.** Root cause of the logouts: the app discarded the saved session on *any* start-up error, including "server unreachable" (phone opened before Wi-Fi connected). Now only a definite 401 logs you out; the user profile is cached locally so the app opens signed-in instantly and re-validates in the background (also whenever it returns to the foreground). Sessions last 90 days and the server hands back a fresh token once a day while the app is used.
+- **Role-locked login.** The login screen has an "I'm a rider / I'm a driver" switch; the server refuses credentials of the wrong kind with an explanatory message, and the post-login redirect only follows a deep link that belongs to that role's side of the app.
+- **Instant suggestions.** New `GET /api/geo/suggest?q=` returns, in order: the user's recent pickups/drop-offs, everyone's popular places, and a seeded list of Delhi NCR landmarks. It answers from zero characters and filters on every keystroke (every typed word must appear in the name or address; matches at the start of the name rank first). From three characters the existing address search (Nominatim) is merged in below, deduplicated by distance. The landmark list lives in `server/src/services/places.js`.

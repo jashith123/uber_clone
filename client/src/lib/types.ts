@@ -30,6 +30,7 @@ export interface Place {
   name: string;
   lat: number;
   lng: number;
+  source?: 'recent' | 'popular' | 'common' | 'search';
 }
 
 export interface Waypoint {

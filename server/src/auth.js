@@ -3,6 +3,10 @@ import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { db } from './db.js';
 
+/** Sessions last 90 days and are silently renewed on use (see /auth/me). */
+export const TOKEN_TTL = '90d';
+export const RENEW_AFTER_SECONDS = 24 * 60 * 60;
+
 export function hashPassword(plain) {
   return bcrypt.hashSync(plain, 10);
 }
@@ -12,7 +16,7 @@ export function verifyPassword(plain, hash) {
 }
 
 export function signToken(user) {
-  return jwt.sign({ sub: user.id, role: user.role }, config.jwtSecret, { expiresIn: '7d' });
+  return jwt.sign({ sub: user.id, role: user.role }, config.jwtSecret, { expiresIn: TOKEN_TTL });
 }
 
 export function verifyToken(token) {
@@ -35,7 +39,7 @@ export function loadUser(id) {
   return out;
 }
 
-/** Express middleware: requires a valid Bearer token; attaches req.user. */
+/** Express middleware: requires a valid Bearer token; attaches req.user and req.tokenIssuedAt. */
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -45,6 +49,7 @@ export function requireAuth(req, res, next) {
     const user = loadUser(payload.sub);
     if (!user) return res.status(401).json({ error: 'User no longer exists' });
     req.user = user;
+    req.tokenIssuedAt = payload.iat || 0;
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

@@ -113,7 +113,11 @@ The signing key in `client/android/keystore/` is a throwaway development key (pa
 
 Use two devices: one logged in as a customer, one as a driver. A third device with `driver2@demo.com` is useful for the "who gets the ride" checks.
 
-### 3.1 Accounts
+### 3.1 Accounts and staying logged in
+
+- [ ] The login screen has "I'm a rider" / "I'm a driver". Rider credentials with "I'm a driver" selected are refused with a clear message, and the other way round.
+- [ ] Close the app fully and reopen it: you are still logged in (sessions last 90 days and renew themselves daily while in use).
+- [ ] Open the app with Wi-Fi off: it still opens on your screen from the cached session; live data loads once the connection is back. You are only logged out by an expired or invalid session, never by a bad connection.
 
 - [ ] Sign up as a new customer. You land on the Ride screen.
 - [ ] Sign up as a new driver with vehicle details. You land on the Drive screen, offline.
@@ -122,7 +126,9 @@ Use two devices: one logged in as a customer, one as a driver. A third device wi
 
 ### 3.2 Choosing a route and seeing the fare (customer)
 
-- [ ] Type a pickup and pick a suggestion. A teal pin appears.
+- [ ] Tap the pickup box before typing anything: your recent places, popular places and well-known landmarks appear immediately.
+- [ ] Type one letter: the list narrows at once; each further letter narrows it again. From three letters, full address search results are added underneath.
+- [ ] Pick a suggestion. A pin appears.
 - [ ] Type a destination and pick one. Routes appear; if more than one, grey lines are alternatives.
 - [ ] Tap a grey line or a route card: the black/teal selection moves and the fare changes with the km.
 - [ ] Tap "Add a stop / via point", then tap the map. The route bends through the stop and the fare goes up.

@@ -2,11 +2,27 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { apiBase, isNativeApp, setApiBase } from '../lib/api';
+import type { Role } from '../lib/types';
+
+const ROLE_KEY = 'swiftride.loginRole';
+
+function initialRole(param: string | null): Role {
+  if (param === 'driver' || param === 'customer') return param;
+  try {
+    const saved = localStorage.getItem(ROLE_KEY);
+    if (saved === 'driver' || saved === 'customer') return saved;
+  } catch {
+    /* ignore */
+  }
+  return 'customer';
+}
 
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
+  const next = params.get('next');
+  const [role, setRole] = useState<Role>(() => initialRole(params.get('role') || (next?.startsWith('/drive') ? 'driver' : null)));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +36,16 @@ export default function Login() {
     setError(null);
     try {
       setApiBase(server);
-      const user = await login(email, password);
-      nav(params.get('next') || (user.role === 'driver' ? '/drive' : '/ride'), { replace: true });
+      try {
+        localStorage.setItem(ROLE_KEY, role);
+      } catch {
+        /* ignore */
+      }
+      const user = await login(email, password, role);
+      const home = user.role === 'driver' ? '/drive' : '/ride';
+      // Only follow "next" if it belongs to this account's side of the app.
+      const allowed = next && (user.role === 'driver' ? next.startsWith('/drive') : !next.startsWith('/drive'));
+      nav(allowed ? next : home, { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -33,14 +57,22 @@ export default function Login() {
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
         <h1>Welcome back</h1>
-        <p className="muted">Log in to ride or drive.</p>
+        <div className="segmented">
+          <button type="button" className={role === 'customer' ? 'on' : ''} onClick={() => setRole('customer')}>
+            I'm a rider
+          </button>
+          <button type="button" className={role === 'driver' ? 'on' : ''} onClick={() => setRole('driver')}>
+            I'm a driver
+          </button>
+        </div>
+        <p className="muted">{role === 'driver' ? 'Log in with your driver account.' : 'Log in with your rider account.'}</p>
         <label>
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus autoComplete="username" />
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
         </label>
         {showServer ? (
           <label>
@@ -55,22 +87,32 @@ export default function Login() {
         )}
         {error && <div className="error">{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? 'Logging in…' : 'Log in'}
+          {busy ? 'Logging in…' : role === 'driver' ? 'Log in to drive' : 'Log in to ride'}
         </button>
         <p className="muted">
-          New here? <Link to="/signup">Create an account</Link>
+          New here? <Link to={`/signup?role=${role}`}>Create a {role === 'driver' ? 'driver' : 'rider'} account</Link>
         </p>
         <div className="demo-box">
           <strong>Demo accounts</strong>
-          <button type="button" className="link" onClick={() => { setEmail('customer@demo.com'); setPassword('password'); }}>
-            customer@demo.com / password
-          </button>
-          <button type="button" className="link" onClick={() => { setEmail('driver@demo.com'); setPassword('password'); }}>
-            driver@demo.com / password (Go)
-          </button>
-          <button type="button" className="link" onClick={() => { setEmail('driver2@demo.com'); setPassword('password'); }}>
-            driver2@demo.com / password (Comfort)
-          </button>
+          {role === 'customer' ? (
+            <>
+              <button type="button" className="link" onClick={() => { setEmail('customer@demo.com'); setPassword('password'); }}>
+                customer@demo.com / password
+              </button>
+              <button type="button" className="link" onClick={() => { setEmail('rider2@demo.com'); setPassword('password'); }}>
+                rider2@demo.com / password
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="link" onClick={() => { setEmail('driver@demo.com'); setPassword('password'); }}>
+                driver@demo.com / password (Go)
+              </button>
+              <button type="button" className="link" onClick={() => { setEmail('driver2@demo.com'); setPassword('password'); }}>
+                driver2@demo.com / password (Comfort)
+              </button>
+            </>
+          )}
         </div>
       </form>
     </main>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { hashPassword, verifyPassword, signToken, requireAuth, loadUser } from '../auth.js';
+import { hashPassword, verifyPassword, signToken, requireAuth, loadUser, RENEW_AFTER_SECONDS } from '../auth.js';
 
 export const authRouter = Router();
 
@@ -31,17 +31,32 @@ authRouter.post('/register', (req, res) => {
   res.status(201).json({ token: signToken(user), user });
 });
 
+/**
+ * POST /api/auth/login { email, password, role? }
+ * When `role` is given ("customer" or "driver") the credentials must belong to
+ * that kind of account, so customer credentials never open the driver side.
+ */
 authRouter.post('/login', (req, res) => {
-  const { email, password } = req.body || {};
+  const { email, password, role } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
   const row = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).trim());
   if (!row || !verifyPassword(password, row.password_hash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
+  if (role && ['customer', 'driver'].includes(role) && row.role !== role) {
+    const wanted = role === 'driver' ? 'driver' : 'rider';
+    const actual = row.role === 'driver' ? 'driver' : 'rider';
+    return res.status(403).json({
+      error: `These are ${actual} credentials. Switch to "I'm a ${actual}" to log in, or create a ${wanted} account.`,
+      role: row.role,
+    });
+  }
   const user = loadUser(row.id);
   res.json({ token: signToken(user), user });
 });
 
+/** Current user. Also hands back a fresh token once a day so sessions never lapse while the app is in use. */
 authRouter.get('/me', requireAuth, (req, res) => {
-  res.json({ user: req.user });
+  const age = Math.floor(Date.now() / 1000) - (req.tokenIssuedAt || 0);
+  res.json({ user: req.user, ...(age > RENEW_AFTER_SECONDS ? { token: signToken(req.user) } : {}) });
 });

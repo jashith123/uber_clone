@@ -14,24 +14,60 @@ interface Props {
   trailing?: React.ReactNode;
 }
 
-export default function PlaceSearch({ value, placeholder, near, onChange, onSelect, onFocus, autoFocus, icon, trailing }: Props) {
-  const [results, setResults] = useState<Place[]>([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-  const abort = useRef<AbortController | null>(null);
+type Suggestion = Place & { source?: 'recent' | 'popular' | 'common' | 'search' };
 
+const SOURCE_LABEL: Record<string, string> = { recent: 'Recent', popular: 'Popular', common: 'Well-known places', search: 'Search results' };
+const SOURCE_ICON: Record<string, string> = { recent: '🕒', popular: '🔥', common: '⭐', search: '📍' };
+
+const closeTo = (a: Place, b: Place) => Math.abs(a.lat - b.lat) < 0.0007 && Math.abs(a.lng - b.lng) < 0.0007;
+
+/**
+ * Place picker.
+ *  - On focus (before typing): the user's recent places, popular places and landmarks.
+ *  - Every keystroke: that list is filtered instantly on the server.
+ *  - From 3 characters: full address search (Nominatim) is merged in below.
+ */
+export default function PlaceSearch({ value, placeholder, near, onChange, onSelect, onFocus, autoFocus, icon, trailing }: Props) {
+  const [local, setLocal] = useState<Suggestion[]>([]);
+  const [remote, setRemote] = useState<Suggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const localTimer = useRef<number | undefined>(undefined);
+  const remoteTimer = useRef<number | undefined>(undefined);
+  const localAbort = useRef<AbortController | null>(null);
+  const remoteAbort = useRef<AbortController | null>(null);
+
+  // Instant, locally-filtered suggestions (works from zero characters).
   useEffect(() => {
-    window.clearTimeout(timer.current);
+    if (!open) return;
+    window.clearTimeout(localTimer.current);
+    localTimer.current = window.setTimeout(async () => {
+      localAbort.current?.abort();
+      const ctrl = new AbortController();
+      localAbort.current = ctrl;
+      try {
+        const { results } = await api<{ results: Suggestion[] }>(`/geo/suggest?q=${encodeURIComponent(value.trim())}`, { signal: ctrl.signal });
+        setLocal(results);
+      } catch {
+        /* aborted or offline */
+      }
+    }, 80);
+    return () => window.clearTimeout(localTimer.current);
+  }, [value, open]);
+
+  // Full address search once there is enough to search for.
+  useEffect(() => {
+    window.clearTimeout(remoteTimer.current);
     if (!open || value.trim().length < 3) {
-      setResults([]);
+      setRemote([]);
+      setSearching(false);
       return;
     }
-    timer.current = window.setTimeout(async () => {
-      abort.current?.abort();
+    remoteTimer.current = window.setTimeout(async () => {
+      remoteAbort.current?.abort();
       const ctrl = new AbortController();
-      abort.current = ctrl;
-      setLoading(true);
+      remoteAbort.current = ctrl;
+      setSearching(true);
       try {
         const q = new URLSearchParams({ q: value.trim() });
         if (near) {
@@ -39,15 +75,23 @@ export default function PlaceSearch({ value, placeholder, near, onChange, onSele
           q.set('lng', String(near[1]));
         }
         const { results } = await api<{ results: Place[] }>(`/geo/geocode?${q}`, { signal: ctrl.signal });
-        setResults(results);
+        setRemote(results.map((r) => ({ ...r, source: 'search' as const })));
       } catch {
         /* aborted or failed */
       } finally {
-        setLoading(false);
+        if (!ctrl.signal.aborted) setSearching(false);
       }
-    }, 350);
-    return () => window.clearTimeout(timer.current);
+    }, 400);
+    return () => window.clearTimeout(remoteTimer.current);
   }, [value, open, near]);
+
+  const merged: Suggestion[] = [...local, ...remote.filter((r) => !local.some((l) => closeTo(l, r)))];
+  const groups = merged.reduce<Record<string, Suggestion[]>>((acc, s) => {
+    const k = s.source || 'search';
+    (acc[k] ||= []).push(s);
+    return acc;
+  }, {});
+  const show = open && (merged.length > 0 || searching);
 
   return (
     <div className="search">
@@ -58,6 +102,7 @@ export default function PlaceSearch({ value, placeholder, near, onChange, onSele
           value={value}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          autoComplete="off"
           onChange={(e) => {
             onChange(e.target.value);
             setOpen(true);
@@ -68,27 +113,50 @@ export default function PlaceSearch({ value, placeholder, near, onChange, onSele
           }}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
         />
+        {value && (
+          <button
+            type="button"
+            className="icon-btn"
+            title="Clear"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange('');
+              setOpen(true);
+            }}
+          >
+            ✕
+          </button>
+        )}
         {trailing}
       </div>
-      {open && (loading || results.length > 0) && (
+      {show && (
         <ul className="search-results">
-          {loading && results.length === 0 && <li className="search-hint">Searching…</li>}
-          {results.map((r) => (
-            <li
-              key={`${r.lat},${r.lng}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onSelect(r);
-                setOpen(false);
-              }}
-            >
-              <span className="search-pin">📍</span>
-              <span>
-                <strong>{r.name}</strong>
-                <small>{r.label}</small>
-              </span>
-            </li>
-          ))}
+          {(['recent', 'popular', 'common', 'search'] as const).flatMap((k) =>
+            groups[k]?.length
+              ? [
+                  <li key={`h-${k}`} className="search-group">
+                    {SOURCE_LABEL[k]}
+                  </li>,
+                  ...groups[k].map((r) => (
+                    <li
+                      key={`${k}-${r.lat},${r.lng}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onSelect(r);
+                        setOpen(false);
+                      }}
+                    >
+                      <span className="search-pin">{SOURCE_ICON[k]}</span>
+                      <span>
+                        <strong>{r.name}</strong>
+                        <small>{r.label}</small>
+                      </span>
+                    </li>
+                  )),
+                ]
+              : [],
+          )}
+          {searching && <li className="search-hint">Searching addresses…</li>}
         </ul>
       )}
     </div>

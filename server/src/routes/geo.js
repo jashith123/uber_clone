@@ -3,11 +3,21 @@ import { db } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { geocode, reverseGeocode, fetchRoutes } from '../services/geo.js';
 import { quoteAll } from '../services/fare.js';
+import { suggestPlaces } from '../services/places.js';
 
 export const geoRouter = Router();
 
 geoRouter.get('/pricing', (_req, res) => {
   res.json({ pricing: db.prepare('SELECT * FROM pricing ORDER BY sort_order').all() });
+});
+
+/**
+ * GET /api/geo/suggest?q=   Instant suggestions: the user's recent places,
+ * everyone's popular places and well-known landmarks, filtered by whatever has
+ * been typed so far (works from zero characters).
+ */
+geoRouter.get('/suggest', requireAuth, (req, res) => {
+  res.json({ results: suggestPlaces(req.user, String(req.query.q || '').trim()) });
 });
 
 geoRouter.get('/geocode', requireAuth, async (req, res, next) => {
