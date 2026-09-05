@@ -1148,6 +1148,7 @@ h4 {
 }
 .trip-head b {
   font-size: 18px;
+  white-space: nowrap;
   color: var(--primary-dark);
 }
 .trip-detail {
@@ -1280,6 +1281,13 @@ h4 {
 .amt {
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  white-space: nowrap;
+}
+.stat strong.amt-pos {
+  color: var(--green);
+}
+.stat strong.amt-neg {
+  color: var(--red);
 }
 .amt-pos {
   color: var(--green);

@@ -168,7 +168,15 @@ If audio connects on Wi-Fi but not across mobile data, that is the NAT case that
 
 - [ ] The "Phone" button opens the phone dialer with the other party's number (accounts have phone numbers from signup or the seed).
 
-### 3.7 Cancellations and edge cases
+### 3.7 Cancellations, fees and the money ledger
+
+Money is always shown with a sign: green `+` for money received, red `−` for money charged or deducted.
+
+- [ ] Customer cancels while "Finding a driver": no charge, shows `₹0`.
+- [ ] Customer cancels within 2 minutes of the driver accepting: no charge.
+- [ ] Wait more than 2 minutes after accept (or have the driver tap "I've arrived"), then cancel as the customer: the button reads "Cancel ride · −₹30" (Go class), a warning explains why, and afterwards the customer's Trips page shows `−₹30 late-cancellation fee` while the driver's Earnings page shows `+₹30`.
+- [ ] Driver cancels after accepting: driver sees "Cancel ride · −₹20", their ledger shows `−₹20 penalty`, the customer is not charged.
+- [ ] Completed trip: customer sees `−₹fare`, driver sees `+₹fare`; Earnings "net" adds fares and fees and subtracts penalties.
 
 - [ ] Customer cancels while "Finding a driver": the request disappears from every driver's list.
 - [ ] Driver cancels after accepting: customer sees "Cancelled by driver" and can book again.

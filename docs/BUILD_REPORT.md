@@ -301,3 +301,15 @@ The user has Android Studio, so the web app was wrapped into a native Android ap
 - Build: `npm run android:build` (bakes the API URL, syncs assets, runs Gradle `assembleRelease`). Gradle 8.14.3 from Android Studio's cache is used because downloading a fresh distribution timed out on this network.
 - Output copied to `dist-apk/SwiftRide-release.apk`. Install steps and the server-address workflow are in the testing guide, Option C.
 - Not built: iOS (needs a Mac with Xcode; the same Capacitor project supports `npx cap add ios`).
+
+---
+
+## 15. Phase 4: phone layout, money ledger, cancellation policy, emulator test
+
+- **Phone layout**: on screens under 900px the map fills the screen, the planning panel becomes a bottom sheet (drag handle, scrolls independently), navigation moves to a bottom tab bar, the top bar shrinks to brand + avatar, and safe-area insets are respected. The desktop layout is unchanged.
+- **Signed money** (per the user's request): every amount is shown with a sign and colour. Driver ledger: `+` fares and late-cancellation fees received, `−` penalties. Customer trips: `−` fares paid and `−` late fees, `₹0` for free cancellations. Receipts show "You paid −₹…" / "You earned +₹…".
+- **Cancellation policy** (server-enforced, unit-tested): free while still searching; free within 2 minutes of the driver accepting; otherwise, or after the driver has arrived, the customer pays the class `cancel_fee` (Moto ₹10, Go ₹30, Comfort ₹40, XL ₹50), which goes to the driver. A driver who cancels after accepting is deducted a flat ₹20. The app warns before the button is pressed and shows the outcome afterwards. Existing databases are migrated automatically (new `cancel_fee`, `driver_penalty` columns).
+- **Guard**: a ride whose route is under 200 m is rejected ("too close together").
+- **Theme**: at the user's request the palette went back to the original black-and-white look. All colours are CSS variables in `:root`, so switching palettes is a one-block change.
+- **Emulator test**: the APK was installed on the Android Studio emulator (Medium Phone, API 36.1). It reached the PC's API over the LAN address, logged in, showed the live map with nearby cars, and computed routes and quotes for a real address search. Screenshots in `docs/screenshots/emulator/`.
+- **Git**: the project is pushed to https://github.com/jashith123/uber_clone (branch `master`).
