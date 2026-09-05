@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import type { Role } from './lib/types';
 import TopNav from './components/TopNav';
+import BottomTabs from './components/BottomTabs';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -70,6 +71,7 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <BottomTabs />
     </div>
   );
 }

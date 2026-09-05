@@ -54,8 +54,8 @@ function png(size, pixel) {
   ]);
 }
 
-const TEAL = [15, 61, 55, 255];
-const CORAL = [242, 107, 58, 255];
+const TEAL = [0, 0, 0, 255];
+const CORAL = [255, 255, 255, 255];
 const WHITE = [255, 255, 255, 255];
 
 /** shape: 'square' (rounded tile), 'circle', or 'foreground' (adaptive, content in the middle 2/3). */
@@ -106,6 +106,6 @@ for (const [d, size] of Object.entries(densities)) {
 const valuesDir = path.join(res, 'values');
 const colors = path.join(valuesDir, 'ic_launcher_background.xml');
 if (fs.existsSync(colors)) {
-  fs.writeFileSync(colors, '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#0F3D37</color>\n</resources>\n');
+  fs.writeFileSync(colors, '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#000000</color>\n</resources>\n');
   console.log('set adaptive icon background colour');
 }

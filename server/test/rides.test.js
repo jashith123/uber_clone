@@ -91,3 +91,41 @@ test('strangers cannot touch a ride', () => {
   assert.throws(() => rides.cancelRide(stranger, id), /Not your ride/);
   rides.cancelRide(customer, id);
 });
+
+test('cancellation policy: free in grace, fee after grace or arrival, penalty for driver', () => {
+  // free: customer cancels while requested
+  let id = insertRequested();
+  let r = rides.cancelRide(customer, id, 'changed mind');
+  assert.equal(r.cancel_fee, 0);
+  assert.equal(r.driver_penalty, 0);
+
+  // free: customer cancels right after accept (inside grace)
+  id = insertRequested();
+  rides.acceptRide(driver, id);
+  r = rides.cancelRide(customer, id);
+  assert.equal(r.cancel_fee, 0);
+
+  // fee: driver has arrived
+  id = insertRequested();
+  rides.acceptRide(driver, id);
+  rides.advanceRide(driver, id, 'arrived');
+  r = rides.cancelRide(customer, id);
+  assert.equal(r.cancel_fee, 30); // economy cancel_fee
+  assert.equal(r.driver_penalty, 0);
+
+  // fee: accepted more than the grace period ago
+  id = insertRequested();
+  rides.acceptRide(driver, id);
+  db.prepare(`UPDATE rides SET accepted_at = datetime('now', '-10 minutes') WHERE id = ?`).run(id);
+  const quote = rides.getRide(id).cancel_policy;
+  assert.equal(quote.customer_fee, 30);
+  r = rides.cancelRide(customer, id);
+  assert.equal(r.cancel_fee, 30);
+
+  // penalty: driver cancels after accepting
+  id = insertRequested();
+  rides.acceptRide(driver, id);
+  r = rides.cancelRide(driver, id, 'car trouble');
+  assert.equal(r.driver_penalty, rides.DRIVER_CANCEL_PENALTY);
+  assert.equal(r.cancel_fee, 0);
+});

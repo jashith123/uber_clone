@@ -113,6 +113,9 @@ export interface Ride {
   payment_method: string;
   cancel_reason: string | null;
   cancelled_by: string | null;
+  cancel_fee: number;
+  driver_penalty: number;
+  cancel_policy: { customer_fee: number; driver_penalty: number; grace_ends_at: string | null };
   customer_rating: number | null;
   driver_rating: number | null;
   created_at: string;
@@ -136,6 +139,7 @@ export interface Pricing {
   per_min: number;
   min_fare: number;
   booking_fee: number;
+  cancel_fee: number;
   currency: string;
   sort_order: number;
 }

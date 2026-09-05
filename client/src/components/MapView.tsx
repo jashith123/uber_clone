@@ -109,14 +109,14 @@ export default function MapView({
           <Polyline
             key={`alt-${r.index}`}
             positions={r.geometry}
-            pathOptions={{ color: '#9aa5b1', weight: 5, opacity: 0.85 }}
+            pathOptions={{ color: '#9aa0a6', weight: 5, opacity: 0.8 }}
             eventHandlers={{ click: () => onRouteClick?.(r.index) }}
           />
         ))}
       {routes
         .filter((r) => r.index === selectedRoute)
         .map((r) => (
-          <Polyline key={`sel-${r.index}`} positions={r.geometry} pathOptions={{ color: '#0e7c66', weight: 6, opacity: 0.95 }} />
+          <Polyline key={`sel-${r.index}`} positions={r.geometry} pathOptions={{ color: '#000', weight: 5 }} />
         ))}
 
       {waypoints.map((w, i) => {

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS pricing (
   per_min       REAL NOT NULL,
   min_fare      REAL NOT NULL,
   booking_fee   REAL NOT NULL DEFAULT 0,
+  cancel_fee    REAL NOT NULL DEFAULT 0,   -- charged to a customer who cancels late
   currency      TEXT NOT NULL DEFAULT 'INR',
   sort_order    INTEGER NOT NULL DEFAULT 0
 );
@@ -66,6 +67,8 @@ CREATE TABLE IF NOT EXISTS rides (
   payment_method   TEXT NOT NULL DEFAULT 'cash',
   cancel_reason    TEXT,
   cancelled_by     TEXT,
+  cancel_fee       REAL NOT NULL DEFAULT 0, -- charged to the customer (+ for the driver)
+  driver_penalty   REAL NOT NULL DEFAULT 0, -- deducted from the driver
   customer_rating  INTEGER,
   driver_rating    INTEGER,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),

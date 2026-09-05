@@ -49,3 +49,31 @@ export const STATUS_LABEL: Record<string, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
+
+/** "+₹393.24" for money in, "−₹30" for money out, "₹0" for nothing. */
+export function signed(amount: number, currency = 'INR') {
+  if (!amount) return money(0, currency);
+  return `${amount > 0 ? '+' : '−'}${money(Math.abs(amount), currency)}`;
+}
+
+export function signedClass(amount: number) {
+  return amount > 0 ? 'amt amt-pos' : amount < 0 ? 'amt amt-neg' : 'amt amt-zero';
+}
+
+/** What a ride did to someone's money, from their point of view. */
+export function rideLedger(r: { status: string; fare_final: number | null; fare_estimate: number; cancel_fee: number; driver_penalty: number; cancelled_by: string | null }, side: 'customer' | 'driver') {
+  if (r.status === 'completed') {
+    const fare = r.fare_final ?? r.fare_estimate;
+    return side === 'driver' ? { amount: fare, note: 'trip fare' } : { amount: -fare, note: 'trip fare' };
+  }
+  if (r.status === 'cancelled') {
+    if (side === 'driver') {
+      if (r.driver_penalty) return { amount: -r.driver_penalty, note: 'penalty: you cancelled after accepting' };
+      if (r.cancel_fee) return { amount: r.cancel_fee, note: 'late-cancellation fee from rider' };
+      return { amount: 0, note: r.cancelled_by === 'driver' ? 'cancelled by you' : 'cancelled by rider, no charge' };
+    }
+    if (r.cancel_fee) return { amount: -r.cancel_fee, note: 'late-cancellation fee' };
+    return { amount: 0, note: r.cancelled_by === 'customer' ? 'cancelled, no charge' : 'cancelled by driver, no charge' };
+  }
+  return { amount: 0, note: 'in progress' };
+}

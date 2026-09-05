@@ -36,7 +36,7 @@ export default function TopNav() {
           <>
             <span className="topnav-user">
               <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
-              {user.name}
+              <span className="topnav-name">{user.name}</span>
             </span>
             <button
               className="btn btn-ghost btn-sm"

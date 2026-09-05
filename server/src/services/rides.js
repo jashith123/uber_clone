@@ -10,6 +10,32 @@ import { computeFare } from './fare.js';
 export const RIDE_STATES = ['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'];
 const ACTIVE_STATES = ['requested', 'accepted', 'arrived', 'in_progress'];
 
+/**
+ * Cancellation policy.
+ *  - Customer cancels while still `requested`: free.
+ *  - Customer cancels within CANCEL_GRACE_SECONDS of the driver accepting: free.
+ *  - Customer cancels later, or after the driver has arrived: pays the class cancel_fee (goes to the driver).
+ *  - Driver cancels after accepting: DRIVER_CANCEL_PENALTY is deducted from the driver; customer pays nothing.
+ */
+export const CANCEL_GRACE_SECONDS = 120;
+export const DRIVER_CANCEL_PENALTY = 20;
+
+function parseDbTime(s) {
+  return s ? Date.parse(s.endsWith('Z') ? s : `${s}Z`) : NaN;
+}
+
+/** What a cancellation would cost right now, from each side. */
+export function cancelQuote(row, pricing, now = Date.now()) {
+  const q = { customer_fee: 0, driver_penalty: 0, grace_ends_at: null };
+  if (!row.driver_id || !['accepted', 'arrived'].includes(row.status)) return q;
+  q.driver_penalty = DRIVER_CANCEL_PENALTY;
+  const acceptedAt = parseDbTime(row.accepted_at);
+  const graceEnds = acceptedAt + CANCEL_GRACE_SECONDS * 1000;
+  q.grace_ends_at = new Date(graceEnds).toISOString();
+  if (row.status === 'arrived' || now >= graceEnds) q.customer_fee = pricing?.cancel_fee ?? 0;
+  return q;
+}
+
 let notify = () => {};
 export function setNotifier(fn) {
   notify = fn;
@@ -68,6 +94,7 @@ export function serializeRide(row) {
     fare_breakdown: JSON.parse(row.fare_breakdown),
     customer: customer ? { id: customer.id, name: customer.name, phone: customer.phone } : null,
     driver,
+    cancel_policy: cancelQuote(row, stmts.pricing.get(row.vehicle_type)),
   };
 }
 
@@ -106,6 +133,9 @@ export async function createRide(customer, body) {
 
   const routes = await fetchRoutes(waypoints);
   const route = routes[Math.min(Math.max(0, Number(route_index) || 0), routes.length - 1)];
+  if (route.distance_km < 0.2) {
+    throw Object.assign(new Error('Pickup and drop-off are too close together. Choose a destination at least 200 m away.'), { status: 400 });
+  }
   const { total, breakdown } = computeFare(pricing, route.distance_km, route.duration_min);
 
   const pickup = waypoints[0];
@@ -217,11 +247,15 @@ export function cancelRide(user, rideId, reason) {
   if (!['requested', 'accepted', 'arrived'].includes(ride.status)) {
     throw Object.assign(new Error(`Cannot cancel a ride that is ${ride.status}`), { status: 409 });
   }
+  const quote = cancelQuote(ride, stmts.pricing.get(ride.vehicle_type));
+  const cancelFee = user.role === 'customer' ? quote.customer_fee : 0;
+  const driverPenalty = user.role === 'driver' ? quote.driver_penalty : 0;
   db.prepare(
-    `UPDATE rides SET status = 'cancelled', cancelled_at = datetime('now'), cancel_reason = ?, cancelled_by = ? WHERE id = ?`,
-  ).run(reason || null, user.role, rideId);
+    `UPDATE rides SET status = 'cancelled', cancelled_at = datetime('now'), cancel_reason = ?, cancelled_by = ?,
+       cancel_fee = ?, driver_penalty = ? WHERE id = ?`,
+  ).run(reason || null, user.role, cancelFee, driverPenalty, rideId);
   const updated = getRide(rideId);
-  logEvent(rideId, user.id, 'cancelled', { by: user.role, reason });
+  logEvent(rideId, user.id, 'cancelled', { by: user.role, reason, cancel_fee: cancelFee, driver_penalty: driverPenalty });
   notify('ride:update', updated);
   return updated;
 }

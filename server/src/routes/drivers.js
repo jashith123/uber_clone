@@ -35,18 +35,28 @@ driversRouter.post('/me/location', (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * Earnings ledger for the driver:
+ *   + fare of every completed trip
+ *   + cancellation fee when a customer cancelled late
+ *   - penalty when the driver cancelled after accepting
+ */
 driversRouter.get('/me/earnings', (req, res) => {
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) AS rides, COALESCE(SUM(fare_final),0) AS total, COALESCE(SUM(distance_km),0) AS km
-       FROM rides WHERE driver_id = ? AND status = 'completed'`,
-    )
-    .get(req.user.id);
-  const today = db
-    .prepare(
-      `SELECT COUNT(*) AS rides, COALESCE(SUM(fare_final),0) AS total
-       FROM rides WHERE driver_id = ? AND status = 'completed' AND date(completed_at) = date('now')`,
-    )
-    .get(req.user.id);
-  res.json({ all_time: totals, today });
+  const summary = (where) =>
+    db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)                     AS rides,
+           COALESCE(SUM(CASE WHEN status = 'completed' THEN fare_final ELSE 0 END), 0) AS earned,
+           COALESCE(SUM(CASE WHEN status = 'cancelled' THEN cancel_fee ELSE 0 END), 0) AS fees,
+           COALESCE(SUM(driver_penalty), 0)                                            AS penalties,
+           COALESCE(SUM(CASE WHEN status = 'completed' THEN distance_km ELSE 0 END), 0) AS km
+         FROM rides WHERE driver_id = ? ${where}`,
+      )
+      .get(req.user.id);
+  const finish = (r) => ({ ...r, rides: r.rides || 0, net: Math.round((r.earned + r.fees - r.penalties) * 100) / 100 });
+  res.json({
+    all_time: finish(summary('')),
+    today: finish(summary(`AND date(COALESCE(completed_at, cancelled_at, created_at)) = date('now')`)),
+  });
 });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Ride } from '../lib/types';
-import { STATUS_LABEL, km, mins, money, shortAddress } from '../lib/format';
+import { STATUS_LABEL, km, mins, money, shortAddress, signed, signedClass } from '../lib/format';
 import Comms from './Comms';
 
 interface Props {
@@ -88,9 +88,25 @@ export default function RideStatusCard({ ride, perspective, onCancel, onAdvance,
             Complete trip · {money(ride.fare_estimate, ride.currency)}
           </button>
         )}
+        {canCancel && onCancel && perspective === 'customer' && ride.cancel_policy?.customer_fee > 0 && (
+          <div className="fee-warning">
+            Late cancellation: <b>{signed(-ride.cancel_policy.customer_fee, ride.currency)}</b> will be charged because the driver already
+            {ride.status === 'arrived' ? ' arrived' : ' accepted more than 2 minutes ago'}.
+          </div>
+        )}
+        {canCancel && onCancel && perspective === 'customer' && ride.status === 'accepted' && ride.cancel_policy?.customer_fee === 0 && ride.cancel_policy?.grace_ends_at && (
+          <div className="call-note">Free to cancel for a short while after the driver accepts; after that a late fee applies.</div>
+        )}
+        {canCancel && onCancel && perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0 && (
+          <div className="fee-warning">
+            Cancelling now deducts <b>{signed(-ride.cancel_policy.driver_penalty, ride.currency)}</b> from your earnings.
+          </div>
+        )}
         {canCancel && onCancel && (
           <button className="btn btn-danger-ghost" disabled={busy} onClick={() => onCancel()}>
             Cancel ride
+            {perspective === 'customer' && ride.cancel_policy?.customer_fee > 0 ? ` · ${signed(-ride.cancel_policy.customer_fee, ride.currency)}` : ''}
+            {perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0 ? ` · ${signed(-ride.cancel_policy.driver_penalty, ride.currency)}` : ''}
           </button>
         )}
       </div>
@@ -109,7 +125,12 @@ export default function RideStatusCard({ ride, perspective, onCancel, onAdvance,
           />
           <Row label="Booking fee" value={money(ride.fare_breakdown.booking_fee, ride.currency)} />
           {ride.fare_breakdown.min_fare_applied && <Row label="Minimum fare applied" value={money(ride.fare_breakdown.min_fare, ride.currency)} />}
-          <Row label="Total" value={money(ride.fare_final ?? ride.fare_estimate, ride.currency)} bold />
+          <Row
+            label={perspective === 'customer' ? 'You paid' : 'You earned'}
+            value={signed((perspective === 'customer' ? -1 : 1) * (ride.fare_final ?? ride.fare_estimate), ride.currency)}
+            bold
+            signedValue
+          />
           <Row label="Paid by" value={ride.payment_method} />
 
           {onRate && !alreadyRated && (
@@ -131,6 +152,18 @@ export default function RideStatusCard({ ride, perspective, onCancel, onAdvance,
         </div>
       )}
 
+      {ride.status === 'cancelled' && (
+        <div className="receipt">
+          <h4>Outcome</h4>
+          {perspective === 'customer' && (
+            <Row label={ride.cancel_fee ? 'Late-cancellation fee' : 'No charge'} value={signed(-ride.cancel_fee, ride.currency)} signedValue />
+          )}
+          {perspective === 'driver' && ride.driver_penalty > 0 && <Row label="Penalty for cancelling after accepting" value={signed(-ride.driver_penalty, ride.currency)} signedValue />}
+          {perspective === 'driver' && ride.cancel_fee > 0 && <Row label="Late-cancellation fee from rider" value={signed(ride.cancel_fee, ride.currency)} signedValue />}
+          {perspective === 'driver' && !ride.driver_penalty && !ride.cancel_fee && <Row label="No money moved" value={signed(0, ride.currency)} signedValue />}
+        </div>
+      )}
+
       {(ride.status === 'completed' || ride.status === 'cancelled') && onDone && (
         <button className="btn btn-light" onClick={onDone}>
           {perspective === 'customer' ? 'Book another ride' : 'Back to requests'}
@@ -140,11 +173,12 @@ export default function RideStatusCard({ ride, perspective, onCancel, onAdvance,
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function Row({ label, value, bold, signedValue }: { label: string; value: string; bold?: boolean; signedValue?: boolean }) {
+  const n = signedValue ? (value.startsWith('+') ? 1 : value.startsWith('−') ? -1 : 0) : 0;
   return (
     <div className={`row ${bold ? 'row-bold' : ''}`}>
       <span>{label}</span>
-      <span>{value}</span>
+      <span className={signedValue ? signedClass(n) : undefined}>{value}</span>
     </div>
   );
 }

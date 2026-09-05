@@ -1,34 +1,35 @@
 /* =====================================================================
    SwiftRide design system
-   Teal (route / trust) + coral (action / stops) on warm neutrals.
-   Pill buttons, soft cards, Manrope type. Not a copy of anybody.
+   Classic black-and-white look on CSS variables (switch palettes in :root).
    ===================================================================== */
 :root {
-  --primary: #0e7c66;
-  --primary-dark: #0a5f4e;
-  --primary-soft: #e3f3ee;
-  --accent: #f26b3a;
-  --accent-dark: #d4552a;
-  --accent-soft: #fdebe3;
-  --nav: #0f3d37;
-  --nav-2: #16524a;
-  --ink: #12233a;
-  --ink-2: #3a4a5e;
-  --muted: #6b7785;
-  --line: #e3e6ea;
+  /* Classic black & white theme (the original look), kept as CSS variables so
+     the whole app follows. */
+  --primary: #000000;
+  --primary-dark: #222222;
+  --primary-soft: #f3f3f3;
+  --accent: #276ef1;
+  --accent-dark: #1d5fd6;
+  --accent-soft: #dfe9ff;
+  --nav: #000000;
+  --nav-2: #000000;
+  --ink: #111111;
+  --ink-2: #333333;
+  --muted: #6b6b6b;
+  --line: #e2e2e2;
   --bg: #ffffff;
-  --bg-2: #f4f6f8;
-  --bg-3: #e8ecf0;
-  --page: #f9f8f5;
-  --green: #1a9c6b;
-  --red: #d63b2f;
-  --amber: #f5b53f;
-  --radius: 16px;
-  --radius-sm: 12px;
-  --pill: 999px;
-  --shadow: 0 10px 30px rgba(18, 35, 58, 0.12);
-  --shadow-sm: 0 2px 8px rgba(18, 35, 58, 0.08);
-  --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bg-2: #f3f3f3;
+  --bg-3: #e8e8e8;
+  --page: #ffffff;
+  --green: #06c167;
+  --red: #e11900;
+  --amber: #ffc043;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --pill: 8px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --nav-h: 64px;
 }
 
@@ -80,7 +81,7 @@ h4 {
 }
 .topnav {
   height: var(--nav-h);
-  background: linear-gradient(90deg, var(--nav), var(--nav-2));
+  background: var(--nav);
   color: #fff;
   display: flex;
   align-items: center;
@@ -100,12 +101,7 @@ h4 {
   gap: 8px;
 }
 .brand::before {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(242, 107, 58, 0.3);
+  content: none;
 }
 .topnav-links {
   display: flex;
@@ -139,8 +135,8 @@ h4 {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
+  background: var(--bg-3);
+  color: var(--ink);
   display: inline-grid;
   place-items: center;
   font-weight: 800;
@@ -155,8 +151,8 @@ h4 {
 .btn {
   border: 0;
   border-radius: var(--pill);
-  padding: 12px 20px;
-  font-weight: 700;
+  padding: 12px 18px;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;
@@ -176,7 +172,6 @@ h4 {
 .btn-primary {
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(14, 124, 102, 0.28);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-dark);
@@ -235,7 +230,7 @@ h4 {
 .link {
   background: none;
   border: 0;
-  color: var(--primary);
+  color: var(--ink);
   text-decoration: underline;
   cursor: pointer;
   padding: 0;
@@ -288,8 +283,9 @@ h4 {
   text-transform: capitalize;
 }
 .segmented button.on {
-  background: var(--primary);
-  color: #fff;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 .segmented.small button {
   padding: 6px 12px;
@@ -325,7 +321,6 @@ h4 {
 }
 .hero h1 em {
   font-style: normal;
-  color: var(--primary);
 }
 .lede {
   font-size: 18px;
@@ -374,7 +369,7 @@ h4 {
   width: 100%;
   max-width: 520px;
   aspect-ratio: 4/3;
-  background: radial-gradient(circle at 30% 20%, #e3f3ee, #f9f8f5 60%, #fdebe3);
+  background: linear-gradient(135deg, #f4f1ea, #e9eef2);
   border-radius: 28px;
   position: relative;
   overflow: hidden;
@@ -451,7 +446,7 @@ h4 {
   inset: 0 auto auto 0;
   width: 100%;
   height: 5px;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
+  background: var(--black, #000);
 }
 .features h3 {
   font-size: 20px;
@@ -462,7 +457,7 @@ h4 {
   line-height: 1.5;
 }
 .drive-cta {
-  background: linear-gradient(120deg, var(--nav), var(--primary));
+  background: var(--black, #000);
   color: #fff;
   margin: 48px 0 0;
   padding: 64px 24px;
@@ -480,11 +475,11 @@ h4 {
   margin-bottom: 20px;
 }
 .drive-cta .btn-primary {
-  background: var(--accent);
-  box-shadow: none;
+  background: #fff;
+  color: #000;
 }
 .drive-cta .btn-primary:hover {
-  background: var(--accent-dark);
+  background: #eee;
 }
 .footer {
   padding: 24px;
@@ -553,7 +548,7 @@ h4 {
   gap: 12px;
 }
 .demo-box {
-  background: var(--primary-soft);
+  background: var(--bg-2);
   border-radius: var(--radius-sm);
   padding: 12px;
   display: grid;
@@ -648,7 +643,7 @@ h4 {
   align-items: flex-start;
 }
 .search-results li:hover {
-  background: var(--primary-soft);
+  background: var(--bg-2);
 }
 .search-results strong {
   display: block;
@@ -727,7 +722,7 @@ h4 {
 }
 .route-list li:hover,
 .vehicle-list li:hover {
-  border-color: #b8d9d0;
+  border-color: #bbb;
 }
 .route-list li.on,
 .vehicle-list li.on {
@@ -753,7 +748,7 @@ h4 {
 .tag {
   display: inline-block;
   font-size: 11px;
-  background: var(--accent);
+  background: var(--green);
   color: #fff;
   border-radius: var(--pill);
   padding: 2px 8px;
@@ -769,28 +764,27 @@ h4 {
   flex: none;
 }
 .veh-bike {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 13a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm14 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 6l3 5H9l3-5zm-1-3h2v3h-2z' fill='%230f3d37'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 13a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm14 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 6l3 5H9l3-5zm-1-3h2v3h-2z' fill='%23000'/%3E%3C/svg%3E");
 }
 .veh-economy,
 .veh-comfort {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 11l1.5-4.5h11L19 11h1a1 1 0 0 1 1 1v5h-2v2h-3v-2H8v2H5v-2H3v-5a1 1 0 0 1 1-1h1zm2.2-3l-1 3h11.6l-1-3H7.2zM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z' fill='%230f3d37'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 11l1.5-4.5h11L19 11h1a1 1 0 0 1 1 1v5h-2v2h-3v-2H8v2H5v-2H3v-5a1 1 0 0 1 1-1h1zm2.2-3l-1 3h11.6l-1-3H7.2zM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z' fill='%23000'/%3E%3C/svg%3E");
 }
 .veh-comfort {
   background-color: var(--primary-soft);
 }
 .veh-xl {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h11l4 4h1a1 1 0 0 1 1 1v6h-2v2h-3v-2H8v2H5v-2H3V8zm2 1v3h10V8H5zm11 0v3h3l-3-3zM6 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z' fill='%230f3d37'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h11l4 4h1a1 1 0 0 1 1 1v6h-2v2h-3v-2H8v2H5v-2H3V8zm2 1v3h10V8H5zm11 0v3h3l-3-3zM6 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z' fill='%23000'/%3E%3C/svg%3E");
   background-color: var(--accent-soft);
 }
 .fare-formula {
   font-size: 12.5px;
-  color: var(--ink-2);
+  color: var(--muted);
   background: var(--bg-2);
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   margin: 12px 0;
   line-height: 1.5;
-  border-left: 4px solid var(--primary);
 }
 .payment-row {
   display: flex;
@@ -877,16 +871,16 @@ h4 {
 }
 .status-accepted,
 .status-arrived {
-  background: var(--primary-soft);
-  color: var(--primary-dark);
+  background: #dfe9ff;
+  color: #1d5fd6;
 }
 .status-in_progress {
-  background: var(--accent-soft);
-  color: var(--accent-dark);
+  background: #d9f7e8;
+  color: #05753f;
 }
 .status-completed {
-  background: var(--primary-soft);
-  color: var(--primary-dark);
+  background: #d9f7e8;
+  color: #05753f;
 }
 .status-cancelled {
   background: #fdecea;
@@ -902,7 +896,7 @@ h4 {
   display: block;
   height: 100%;
   width: 40%;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
+  background: var(--black, #000);
   animation: slide 1.4s infinite ease-in-out;
 }
 @keyframes slide {
@@ -1282,41 +1276,279 @@ h4 {
   min-width: 0;
 }
 
-/* ---------- responsive ---------- */
+/* ---------- signed money ---------- */
+.amt {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.amt-pos {
+  color: var(--green);
+}
+.amt-neg {
+  color: var(--red);
+}
+.amt-zero {
+  color: var(--muted);
+  font-weight: 600;
+}
+.ledger-note {
+  font-size: 12px;
+  color: var(--muted);
+  display: block;
+}
+.fee-warning {
+  background: #fff1d6;
+  color: #8a5a00;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+/* ---------- bottom tab bar (phones only) ---------- */
+.tabbar {
+  display: none;
+}
+
+/* ---------- responsive: phones ---------- */
 @media (max-width: 900px) {
+  :root {
+    --nav-h: 56px;
+    --tab-h: 64px;
+  }
+  html,
+  body {
+    overflow-x: hidden;
+  }
+  body {
+    background: #fff;
+  }
+
+  /* top bar: brand + avatar only; navigation lives in the tab bar */
+  .topnav {
+    gap: 12px;
+    padding: 0 16px;
+    padding-top: env(safe-area-inset-top);
+    height: calc(var(--nav-h) + env(safe-area-inset-top));
+  }
+  .brand {
+    font-size: 20px;
+  }
+  .topnav-links {
+    display: none;
+  }
+  .topnav-name {
+    display: none;
+  }
+  .topnav-user + .btn-ghost {
+    display: none; /* "Log out" lives in the tab bar on phones */
+  }
+  .topnav-right .btn-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .app-shell:has(.tabbar) main,
+  .app-shell:has(.tabbar) .ride-layout {
+    padding-bottom: 0;
+  }
+  .app-shell:has(.tabbar) .page {
+    padding-bottom: calc(var(--tab-h) + 24px + env(safe-area-inset-bottom));
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1100;
+    display: flex;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(var(--tab-h) + env(safe-area-inset-bottom));
+  }
+  .tabbar a,
+  .tabbar button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-decoration: none;
+    border: 0;
+    background: none;
+    padding: 6px 0;
+    cursor: pointer;
+  }
+  .tabbar a.on {
+    color: var(--primary);
+  }
+  .tab-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  /* ride / drive: full-screen map with a bottom sheet */
+  .ride-layout {
+    display: block;
+    flex: none;
+    position: relative;
+    height: calc(100vh - var(--nav-h) - var(--tab-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - var(--nav-h) - var(--tab-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .ride-layout .map {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+  }
+  .panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 68%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -10px 30px rgba(18, 35, 58, 0.18);
+    padding: 8px 16px 20px;
+    z-index: 500;
+  }
+  .panel::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--bg-3);
+    margin: 4px auto 12px;
+  }
+  .panel-title {
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+  .search-stack {
+    margin: 8px 0;
+  }
+  .search-results {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    max-height: 40vh;
+  }
+  .status-card {
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+    gap: 12px;
+  }
+  .status-title {
+    font-size: 18px;
+  }
+  .status-fare strong {
+    font-size: 20px;
+  }
+  .btn-lg {
+    padding: 15px 20px;
+    font-size: 16px;
+  }
+  .leaflet-control-attribution {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+  .leaflet-top {
+    top: 8px;
+  }
+
+  /* landing / auth / pages */
   .hero {
     grid-template-columns: 1fr;
-    padding-top: 40px;
+    gap: 24px;
+    padding: 32px 18px 24px;
   }
   .hero h1 {
-    font-size: 38px;
+    font-size: 34px;
+  }
+  .lede {
+    font-size: 16px;
+  }
+  .hero-form {
+    max-width: none;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-actions .btn {
+    width: 100%;
+  }
+  .hero-actions .link {
+    text-align: center;
+  }
+  .hero-map {
+    max-width: none;
+    aspect-ratio: 16/10;
   }
   .features,
   .stat-row {
     grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 0 18px 18px;
   }
-  .topnav {
-    gap: 12px;
-    padding: 0 14px;
+  .drive-cta {
+    padding: 40px 18px;
+    margin-top: 24px;
   }
-  .topnav-user span + * {
-    display: none;
+  .drive-cta h2 {
+    font-size: 26px;
   }
-  .ride-layout {
+  .auth {
+    padding: 20px 14px 40px;
+    place-items: start stretch;
+  }
+  .auth-card {
+    max-width: none;
+    padding: 22px 18px;
+    border-radius: 20px;
+  }
+  .auth-card h1 {
+    font-size: 26px;
+  }
+  .page {
+    padding: 20px 16px 40px;
+  }
+  .page h1 {
+    font-size: 26px;
+  }
+  .online-bar {
+    flex-wrap: wrap;
+  }
+  .online-bar .btn {
+    width: 100%;
+  }
+  .request-list {
+    padding-bottom: 8px;
+  }
+  .grid-2 {
     grid-template-columns: 1fr;
-    grid-template-rows: 42vh 1fr;
-    height: auto;
-    min-height: calc(100vh - var(--nav-h));
   }
-  .ride-layout .map {
-    order: -1;
-    height: 42vh;
+  .chat-list {
+    max-height: 200px;
   }
-  .panel {
-    border-right: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 20px 20px 0 0;
-    margin-top: -16px;
-    overflow: visible;
+}
+
+@media (max-width: 380px) {
+  .brand {
+    font-size: 18px;
+  }
+  .hero h1 {
+    font-size: 30px;
   }
 }
