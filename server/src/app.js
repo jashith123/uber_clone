@@ -8,6 +8,10 @@ import { authRouter } from './routes/auth.js';
 import { geoRouter } from './routes/geo.js';
 import { ridesRouter } from './routes/rides.js';
 import { driversRouter } from './routes/drivers.js';
+import { paymentsRouter } from './routes/payments.js';
+import { safetyRouter } from './routes/safety.js';
+import { pushRouter } from './routes/push.js';
+import { adminRouter } from './routes/admin.js';
 import { nearbyDrivers } from './realtime.js';
 import { requireAuth } from './auth.js';
 
@@ -23,6 +27,10 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/geo', geoRouter);
   app.use('/api/rides', ridesRouter);
+  app.use('/api/payments', paymentsRouter);
+  app.use('/api/safety', safetyRouter);
+  app.use('/api/push', pushRouter);
+  app.use('/api/admin', adminRouter);
 
   // Any signed-in user (customers use it for the "cars nearby" layer). Must be
   // mounted BEFORE the driver-only router below.

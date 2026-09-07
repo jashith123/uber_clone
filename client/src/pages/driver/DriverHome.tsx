@@ -1,29 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import MapView, { type MapDriver } from '../../components/MapView';
 import RideStatusCard from '../../components/RideStatusCard';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { DEFAULT_CENTER, bearing, getCurrentPosition, haversineKm, lerp } from '../../lib/geo';
 import { getSocket } from '../../lib/socket';
-import { km, mins, money, shortAddress, timeAgo } from '../../lib/format';
-import type { Ride } from '../../lib/types';
+import { alreadyAsked, enablePush, pushPermission } from '../../lib/push';
+import { km, mins, money, shortAddress } from '../../lib/format';
+import type { Ride, RideOffer, User } from '../../lib/types';
 
 type Pos = { lat: number; lng: number; heading: number | null };
+
+/** Seconds left on an offer, recomputed every second. */
+function useCountdown(iso: string | undefined) {
+  const [left, setLeft] = useState(0);
+  useEffect(() => {
+    if (!iso) return;
+    const end = Date.parse(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso.replace(' ', 'T')}Z`);
+    const tick = () => setLeft(Math.max(0, Math.round((end - Date.now()) / 1000)));
+    tick();
+    const t = window.setInterval(tick, 500);
+    return () => window.clearInterval(t);
+  }, [iso]);
+  return left;
+}
 
 export default function DriverHome() {
   const { user, setUser } = useAuth();
   const online = Boolean(user?.driver?.is_online);
+  const approval = user?.driver?.approval_status || 'approved';
   const [pos, setPos] = useState<Pos>(() => ({
     lat: user?.driver?.lat ?? DEFAULT_CENTER[0],
     lng: user?.driver?.lng ?? DEFAULT_CENTER[1],
     heading: user?.driver?.heading ?? 0,
   }));
   const [simulate, setSimulate] = useState(false);
-  const [requests, setRequests] = useState<Ride[]>([]);
-  const [preview, setPreview] = useState<Ride | null>(null);
+  const [offers, setOffers] = useState<RideOffer[]>([]);
   const [ride, setRide] = useState<Ride | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pushHint, setPushHint] = useState(false);
   const simStep = useRef(0);
 
   const active = ride && ['accepted', 'arrived', 'in_progress'].includes(ride.status) ? ride : null;
@@ -35,35 +52,39 @@ export default function DriverHome() {
       if (p) setPos({ lat: p[0], lng: p[1], heading: 0 });
       else setSimulate(true); // no GPS on this device: drive the demo car instead
     });
+    setPushHint(pushPermission() === 'default' && !alreadyAsked());
   }, []);
 
-  // Realtime: new requests, taken requests, ride updates.
+  const loadOffers = useCallback(() => {
+    api<{ rides: RideOffer[] }>('/rides/available').then((r) => setOffers(r.rides)).catch(() => {});
+  }, []);
+
+  // Realtime: offers arriving and expiring, ride updates.
   useEffect(() => {
     const s = getSocket();
     if (!s) return;
-    const onNew = (r: Ride) => setRequests((cur) => (cur.some((x) => x.id === r.id) ? cur : [r, ...cur]));
-    const onTaken = ({ id }: { id: number }) => setRequests((cur) => cur.filter((x) => x.id !== id));
+    const onOffer = () => loadOffers();
+    const onExpired = ({ ride_id }: { ride_id: number }) => setOffers((cur) => cur.filter((o) => o.id !== ride_id));
+    const onClosed = ({ ride_id }: { ride_id: number }) => setOffers((cur) => cur.filter((o) => o.id !== ride_id));
     const onUpdate = (r: Ride) => setRide((cur) => (cur && cur.id === r.id ? r : cur));
-    s.on('ride:new', onNew);
-    s.on('ride:taken', onTaken);
+    s.on('offer:new', onOffer);
+    s.on('offer:expired', onExpired);
+    s.on('offer:closed', onClosed);
     s.on('ride:update', onUpdate);
     return () => {
-      s.off('ride:new', onNew);
-      s.off('ride:taken', onTaken);
+      s.off('offer:new', onOffer);
+      s.off('offer:expired', onExpired);
+      s.off('offer:closed', onClosed);
       s.off('ride:update', onUpdate);
     };
-  }, []);
-
-  const loadRequests = useCallback(() => {
-    api<{ rides: Ride[] }>('/rides/available').then((r) => setRequests(r.rides)).catch(() => {});
-  }, []);
+  }, [loadOffers]);
 
   useEffect(() => {
-    if (!online) return;
-    loadRequests();
-    const t = window.setInterval(loadRequests, 10000);
+    if (!online || active) return;
+    loadOffers();
+    const t = window.setInterval(loadOffers, 8000);
     return () => window.clearInterval(t);
-  }, [online, loadRequests]);
+  }, [online, active, loadOffers]);
 
   // Real GPS while online.
   useEffect(() => {
@@ -101,7 +122,7 @@ export default function DriverHome() {
     if (active?.status !== 'in_progress') simStep.current = 0;
   }, [active?.status]);
 
-  // Push position to the server (which relays to the rider).
+  // Push position to the server (which relays it, with an ETA, to the rider).
   useEffect(() => {
     if (!online) return;
     getSocket()?.emit('driver:location', pos);
@@ -109,10 +130,14 @@ export default function DriverHome() {
 
   async function toggleOnline() {
     setBusy(true);
+    setError(null);
     try {
-      const { user: u } = await api<{ user: NonNullable<typeof user> }>('/drivers/me/status', { method: 'POST', body: { online: !online } });
+      const { user: u } = await api<{ user: User }>('/drivers/me/status', { method: 'POST', body: { online: !online } });
       setUser(u);
-      if (!online) getSocket()?.emit('driver:location', pos);
+      if (!online) {
+        getSocket()?.emit('driver:location', pos);
+        if (pushPermission() === 'default') void enablePush();
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -126,18 +151,26 @@ export default function DriverHome() {
     try {
       const { ride } = await fn();
       setRide(ride);
-      setPreview(null);
-      setRequests((cur) => cur.filter((x) => x.id !== ride.id));
+      setOffers((cur) => cur.filter((o) => o.id !== ride.id));
     } catch (e) {
       setError((e as Error).message);
-      loadRequests();
+      loadOffers();
     } finally {
       setBusy(false);
     }
   }
 
-  const shown = active ?? preview;
+  async function decline(id: number) {
+    setOffers((cur) => cur.filter((o) => o.id !== id));
+    try {
+      await api(`/rides/${id}/decline`, { method: 'POST' });
+    } catch {
+      loadOffers();
+    }
+  }
+
   const mapDrivers = useMemo<MapDriver[]>(() => [{ id: user?.id ?? 0, ...pos, active: true }], [pos, user?.id]);
+  const shown = active ?? (offers[0] || null);
   const fitKey = shown ? `ride-${shown.id}-${shown.status}` : undefined;
 
   return (
@@ -147,15 +180,34 @@ export default function DriverHome() {
           <div>
             <strong>{online ? "You're online" : "You're offline"}</strong>
             <small>
-              {user?.driver?.vehicle_type?.toUpperCase()} · {user?.driver?.plate || 'no plate'} · ★ {user?.driver?.rating.toFixed(1)}
+              {user?.driver?.vehicle_type?.toUpperCase()} · {user?.driver?.plate || 'no plate'} · ★ {user?.driver?.rating?.toFixed(1)}
+              {user?.driver?.acceptance_rate != null ? ` · ${Math.round(user.driver.acceptance_rate)}% accepted` : ''}
             </small>
           </div>
-          <button className={`btn ${online ? 'btn-light' : 'btn-primary'}`} disabled={busy || Boolean(active)} onClick={toggleOnline}>
+          <button className={`btn ${online ? 'btn-light' : 'btn-primary'}`} disabled={busy || Boolean(active) || approval !== 'approved'} onClick={toggleOnline}>
             {online ? 'Go offline' : 'Go online'}
           </button>
         </div>
+
+        {approval !== 'approved' && (
+          <div className="fee-warning">
+            {approval === 'pending' ? 'Your documents are being reviewed. You cannot go online yet.' : 'Your application was rejected.'}{' '}
+            <Link to="/drive/documents">Open documents</Link>
+          </div>
+        )}
+
+        {pushHint && online && (
+          <div className="hint-bar">
+            <span>Turn on notifications so you hear about ride offers.</span>
+            <button className="btn btn-primary btn-sm" onClick={async () => { await enablePush(); setPushHint(false); }}>
+              Turn on
+            </button>
+            <button className="icon-btn" onClick={() => setPushHint(false)}>✕</button>
+          </div>
+        )}
+
         <label className="sim-toggle">
-          <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} /> Simulate GPS (demo: car drives itself)
+          <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} /> Simulate GPS (demo: the car drives itself)
         </label>
         {error && <div className="error">{error}</div>}
 
@@ -164,64 +216,32 @@ export default function DriverHome() {
             ride={ride}
             perspective="driver"
             busy={busy}
-            onAdvance={(a) => act(() => api(`/rides/${ride.id}/${a}`, { method: 'POST' }))}
+            onAdvance={(a, opts) => act(() => api(`/rides/${ride.id}/${a}`, { method: 'POST', body: opts }))}
             onCancel={() => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: 'Driver unavailable' } }))}
             onRate={(stars) => act(() => api(`/rides/${ride.id}/rate`, { method: 'POST', body: { stars } }))}
             onDone={() => {
               setRide(null);
-              loadRequests();
+              loadOffers();
             }}
           />
         ) : !online ? (
-          <p className="muted">Go online to start receiving ride requests for your vehicle class.</p>
+          <p className="muted">Go online to start receiving ride offers for your vehicle class.</p>
         ) : (
           <>
             <h3 className="section-title">
-              Ride requests <span className="muted">· {requests.length}</span>
+              Ride offers <span className="muted">· {offers.length}</span>
             </h3>
-            {requests.length === 0 && (
+            {offers.length === 0 && (
               <p className="muted">
-                Waiting for requests… <span className="pulse" />
+                Waiting for an offer… <span className="pulse" />
+                <br />
+                <small>Requests go to the nearest free drivers first, so you only see rides you can actually reach.</small>
               </p>
             )}
             <ul className="request-list">
-              {requests.map((r) => {
-                const toPickup = haversineKm(pos, { lat: r.pickup_lat, lng: r.pickup_lng });
-                return (
-                  <li key={r.id} className={`card request ${preview?.id === r.id ? 'on' : ''}`} onClick={() => setPreview(r)}>
-                    <div className="request-head">
-                      <b>{money(r.fare_estimate, r.currency)}</b>
-                      <small>{timeAgo(r.created_at)}</small>
-                    </div>
-                    <ol className="trip-path compact">
-                      <li className="pickup">
-                        {shortAddress(r.pickup_address)} <small>({km(toPickup)} away)</small>
-                      </li>
-                      {r.waypoints.slice(1, -1).map((w, i) => (
-                        <li key={i} className="stop">
-                          {shortAddress(w.address)}
-                        </li>
-                      ))}
-                      <li className="dropoff">{shortAddress(r.dropoff_address)}</li>
-                    </ol>
-                    <div className="request-meta">
-                      <span>
-                        {km(r.distance_km)} · {mins(r.duration_min)} · {r.customer?.name}
-                      </span>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        disabled={busy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          act(() => api(`/rides/${r.id}/accept`, { method: 'POST' }));
-                        }}
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
+              {offers.map((o) => (
+                <OfferCard key={o.id} offer={o} busy={busy} onAccept={() => act(() => api(`/rides/${o.id}/accept`, { method: 'POST' }))} onDecline={() => decline(o.id)} />
+              ))}
             </ul>
           </>
         )}
@@ -236,5 +256,49 @@ export default function DriverHome() {
         fitKey={fitKey}
       />
     </div>
+  );
+}
+
+function OfferCard({ offer, busy, onAccept, onDecline }: { offer: RideOffer; busy?: boolean; onAccept: () => void; onDecline: () => void }) {
+  const left = useCountdown(offer.offer_expires_at);
+  const total = 20;
+  const pct = Math.max(0, Math.min(100, (left / total) * 100));
+
+  return (
+    <li className={`card request offer ${left <= 5 ? 'urgent' : ''}`}>
+      <div className="offer-timer">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <div className="request-head">
+        <b>{money(offer.fare_estimate, offer.currency)}</b>
+        <small>{left > 0 ? `${left}s to decide` : 'expiring…'}</small>
+      </div>
+      <ol className="trip-path compact">
+        <li className="pickup">
+          {shortAddress(offer.pickup_address)} <small>({km(offer.pickup_distance_km)} away)</small>
+        </li>
+        {offer.waypoints.slice(1, -1).map((w, i) => (
+          <li key={i} className="stop">
+            {shortAddress(w.address)}
+          </li>
+        ))}
+        <li className="dropoff">{shortAddress(offer.dropoff_address)}</li>
+      </ol>
+      <div className="request-meta">
+        <span>
+          {km(offer.distance_km)} · {mins(offer.duration_min)} · {offer.customer?.name}
+          {offer.surge_multiplier > 1 ? ` · ×${offer.surge_multiplier}` : ''}
+          {` · ${offer.payment_method}`}
+        </span>
+      </div>
+      <div className="offer-actions">
+        <button className="btn btn-light btn-sm" disabled={busy} onClick={onDecline}>
+          Decline
+        </button>
+        <button className="btn btn-primary" disabled={busy || left <= 0} onClick={onAccept}>
+          Accept · {money(offer.fare_estimate, offer.currency)}
+        </button>
+      </div>
+    </li>
   );
 }

@@ -1,13 +1,22 @@
 const TOKEN_KEY = 'swiftride.token';
 const BASE_KEY = 'swiftride.apiBase';
 
+/** True when running inside the Capacitor native shell (APK / IPA). */
+export function isNativeApp(): boolean {
+  return Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+}
+
 /**
  * Where the API lives.
- *  - Web build served by the API itself: '' (relative URLs, same origin).
- *  - Native app (APK): the value typed on the login screen, else the URL baked
- *    in at build time with VITE_API_URL (e.g. http://192.168.29.217:4000).
+ *
+ *  - Website: always its own origin (''). The site is served by the API, so a
+ *    saved address must never override it. Without this rule a stale value left
+ *    behind by native-app testing in the same browser silently breaks the site.
+ *  - Native app (APK): the address typed on the login screen, else the one baked
+ *    in at build time with VITE_API_URL.
  */
 export function apiBase(): string {
+  if (!isNativeApp()) return '';
   try {
     const saved = localStorage.getItem(BASE_KEY);
     if (saved) return saved.replace(/\/+$/, '');
@@ -24,11 +33,6 @@ export function setApiBase(url: string | null) {
   } catch {
     /* storage unavailable */
   }
-}
-
-/** True when running inside the Capacitor native shell (APK / IPA). */
-export function isNativeApp(): boolean {
-  return Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
 }
 
 export function getToken(): string | null {

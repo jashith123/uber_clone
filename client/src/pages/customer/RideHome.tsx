@@ -5,8 +5,9 @@ import RideStatusCard from '../../components/RideStatusCard';
 import { api } from '../../lib/api';
 import { DEFAULT_CENTER, getCurrentPosition } from '../../lib/geo';
 import { getSocket } from '../../lib/socket';
+import { alreadyAsked, enablePush, pushPermission } from '../../lib/push';
 import { km, mins, money, shortAddress } from '../../lib/format';
-import type { DriverLocation, Place, Ride, RouteOption, Waypoint } from '../../lib/types';
+import type { DispatchSearching, DriverLocation, Place, Promo, PromoCheck, Ride, RouteOption, Wallet, Waypoint } from '../../lib/types';
 
 type MapMode = 'pickup' | 'dropoff' | 'stop' | null;
 
@@ -22,40 +23,69 @@ export default function RideHome() {
   const [routeIndex, setRouteIndex] = useState(0);
   const [vehicle, setVehicle] = useState('economy');
   const [payment, setPayment] = useState<'cash' | 'card' | 'wallet'>('cash');
+  const [promoInput, setPromoInput] = useState('');
+  const [promoApplied, setPromoApplied] = useState<string | null>(null);
+  const [promoCheck, setPromoCheck] = useState<PromoCheck | null>(null);
+  const [offers, setOffers] = useState<Promo[]>([]);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
   const [routing, setRouting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ride, setRide] = useState<Ride | null>(null);
   const [driverLoc, setDriverLoc] = useState<DriverLocation | null>(null);
+  const [dispatchNote, setDispatchNote] = useState<string | null>(null);
   const [nearby, setNearby] = useState<MapDriver[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [pushHint, setPushHint] = useState(false);
   const routeReq = useRef(0);
 
-  const waypoints = useMemo<Waypoint[]>(() => (pickup && dropoff ? [pickup, ...stops, dropoff] : [pickup, dropoff].filter(Boolean) as Waypoint[]), [pickup, dropoff, stops]);
+  const waypoints = useMemo<Waypoint[]>(
+    () => (pickup && dropoff ? [pickup, ...stops, dropoff] : ([pickup, dropoff].filter(Boolean) as Waypoint[])),
+    [pickup, dropoff, stops],
+  );
   const selected = routes.find((r) => r.index === routeIndex) ?? routes[0];
   const quote = selected?.quotes.find((q) => q.vehicle_type === vehicle);
 
-  // Initial load: geolocation + any ride already in progress.
+  // Initial load. Geolocation is deliberately NOT awaited here: the browser can
+  // take several seconds (or never answer), and the panel must not sit blank.
   useEffect(() => {
-    api<{ ride: Ride | null }>('/rides/active')
-      .then((r) => r.ride && setRide(r.ride))
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-    // Geolocation is best-effort and must never block the UI.
-    getCurrentPosition().then((pos) => pos && setCenter(pos));
+    void (async () => {
+      const [active, w, p] = await Promise.all([
+        api<{ ride: Ride | null }>('/rides/active').catch(() => ({ ride: null })),
+        api<{ wallet: Wallet }>('/payments/wallet').catch(() => null),
+        api<{ promos: Promo[] }>('/geo/promos').catch(() => ({ promos: [] })),
+      ]);
+      if (active.ride) setRide(active.ride);
+      if (w) setWallet(w.wallet);
+      setOffers(p.promos);
+      setLoaded(true);
+      setPushHint(pushPermission() === 'default' && !alreadyAsked());
+    })();
+    // Recentre the map if and when the browser gives us a position.
+    void getCurrentPosition().then((pos) => pos && setCenter(pos));
   }, []);
 
   // Realtime updates for the ride I'm on.
   useEffect(() => {
     const s = getSocket();
     if (!s) return;
-    const onUpdate = (r: Ride) => setRide((cur) => (cur && cur.id === r.id ? r : cur));
+    const onUpdate = (r: Ride) => {
+      setRide((cur) => (cur && cur.id === r.id ? r : cur));
+      if (r.status !== 'requested') setDispatchNote(null);
+    };
     const onLoc = (l: DriverLocation) => setDriverLoc(l);
+    const onSearching = (d: DispatchSearching) =>
+      setDispatchNote(d.offered_to ? `Asking ${d.offered_to} nearby driver${d.offered_to > 1 ? 's' : ''}…` : 'Widening the search…');
+    const onNone = () => setDispatchNote('No drivers free nearby right now.');
     s.on('ride:update', onUpdate);
     s.on('driver:location', onLoc);
+    s.on('dispatch:searching', onSearching);
+    s.on('dispatch:none', onNone);
     return () => {
       s.off('ride:update', onUpdate);
       s.off('driver:location', onLoc);
+      s.off('dispatch:searching', onSearching);
+      s.off('dispatch:none', onNone);
     };
   }, []);
 
@@ -76,7 +106,7 @@ export default function RideHome() {
     };
   }, [center, pickup, ride]);
 
-  // Fetch route options whenever the waypoint list changes.
+  // Fetch route options whenever the waypoints or the promo change.
   useEffect(() => {
     if (!pickup || !dropoff) {
       setRoutes([]);
@@ -85,15 +115,20 @@ export default function RideHome() {
     const id = ++routeReq.current;
     setRouting(true);
     setError(null);
-    api<{ routes: RouteOption[] }>('/geo/routes', { method: 'POST', body: { waypoints: [pickup, ...stops, dropoff] } })
+    api<{ routes: RouteOption[]; promo: PromoCheck | null }>('/geo/routes', {
+      method: 'POST',
+      body: { waypoints: [pickup, ...stops, dropoff], promo_code: promoApplied },
+    })
       .then((r) => {
         if (id !== routeReq.current) return;
         setRoutes(r.routes);
         setRouteIndex(0);
+        setPromoCheck(r.promo);
+        if (r.promo && !r.promo.ok) setPromoApplied(null);
       })
       .catch((e) => id === routeReq.current && setError((e as Error).message))
       .finally(() => id === routeReq.current && setRouting(false));
-  }, [pickup, dropoff, stops]);
+  }, [pickup, dropoff, stops, promoApplied]);
 
   const reverse = useCallback(async (p: { lat: number; lng: number }): Promise<Waypoint> => {
     try {
@@ -149,7 +184,7 @@ export default function RideHome() {
 
   async function useMyLocation() {
     const pos = await getCurrentPosition();
-    if (!pos) return setError('Location permission denied. Click the map to set pickup.');
+    if (!pos) return setError('Location permission denied. Tap the map to set pickup.');
     const wp = await reverse({ lat: pos[0], lng: pos[1] });
     setPickup(wp);
     setPickupText(shortAddress(wp.address, 'Current location'));
@@ -159,15 +194,21 @@ export default function RideHome() {
 
   async function book() {
     if (!selected || !quote) return;
+    if (payment === 'wallet' && wallet && wallet.balance < quote.fare) {
+      setError(`Your wallet has ${money(wallet.balance)} but the fare is ${money(quote.fare)}. Add money or pay by cash.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const { ride } = await api<{ ride: Ride }>('/rides', {
         method: 'POST',
-        body: { waypoints, route_index: selected.index, vehicle_type: vehicle, payment_method: payment },
+        body: { waypoints, route_index: selected.index, vehicle_type: vehicle, payment_method: payment, promo_code: promoApplied },
       });
       setRide(ride);
       setDriverLoc(null);
+      setDispatchNote('Looking for nearby drivers…');
+      if (pushPermission() === 'default') void enablePush();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -180,6 +221,7 @@ export default function RideHome() {
     try {
       const { ride } = await fn();
       setRide(ride);
+      api<{ wallet: Wallet }>('/payments/wallet').then((w) => setWallet(w.wallet)).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -198,15 +240,30 @@ export default function RideHome() {
     setRoutes([]);
     setMapMode('pickup');
     setError(null);
+    setDispatchNote(null);
   }
 
   const mapDrivers: MapDriver[] = ride
     ? ride.driver && (driverLoc || ride.driver.lat != null)
-      ? [{ id: ride.driver.id, lat: driverLoc?.lat ?? ride.driver.lat!, lng: driverLoc?.lng ?? ride.driver.lng!, heading: driverLoc?.heading ?? ride.driver.heading, active: true }]
+      ? [
+          {
+            id: ride.driver.id,
+            lat: driverLoc?.lat ?? ride.driver.lat!,
+            lng: driverLoc?.lng ?? ride.driver.lng!,
+            heading: driverLoc?.heading ?? ride.driver.heading,
+            active: true,
+          },
+        ]
       : []
     : nearby;
 
-  const fitKey = ride ? `ride-${ride.id}` : routes.length ? `r-${routeIndex}-${routes.map((r) => r.geometry.length).join('.')}` : waypoints.length ? `w-${waypoints.map((w) => `${w.lat},${w.lng}`).join('|')}` : undefined;
+  const fitKey = ride
+    ? `ride-${ride.id}`
+    : routes.length
+      ? `r-${routeIndex}-${routes.map((r) => r.geometry.length).join('.')}`
+      : waypoints.length
+        ? `w-${waypoints.map((w) => `${w.lat},${w.lng}`).join('|')}`
+        : undefined;
 
   return (
     <div className="ride-layout">
@@ -218,6 +275,8 @@ export default function RideHome() {
             ride={ride}
             perspective="customer"
             busy={busy}
+            etaMin={driverLoc?.eta_min ?? ride.driver_eta_min}
+            dispatchNote={dispatchNote}
             onCancel={() => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: 'Changed plans' } }))}
             onRate={(stars) => act(() => api(`/rides/${ride.id}/rate`, { method: 'POST', body: { stars } }))}
             onDone={resetPlan}
@@ -225,6 +284,23 @@ export default function RideHome() {
         ) : (
           <>
             <h2 className="panel-title">Get a ride</h2>
+
+            {pushHint && (
+              <div className="hint-bar">
+                <span>Turn on notifications so you know the moment a driver accepts.</span>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={async () => {
+                    await enablePush();
+                    setPushHint(false);
+                  }}
+                >
+                  Turn on
+                </button>
+                <button className="icon-btn" onClick={() => setPushHint(false)}>✕</button>
+              </div>
+            )}
+
             <div className="search-stack">
               <PlaceSearch
                 icon="pickup"
@@ -261,19 +337,35 @@ export default function RideHome() {
             </div>
 
             <div className="map-hint">
-              {mapMode === 'pickup' && 'Click the map to set your pickup point.'}
-              {mapMode === 'dropoff' && 'Click the map to set your destination.'}
-              {mapMode === 'stop' && 'Click the map where you want to pass through.'}
+              {mapMode === 'pickup' && 'Tap the map to set your pickup point.'}
+              {mapMode === 'dropoff' && 'Tap the map to set your destination.'}
+              {mapMode === 'stop' && 'Tap the map where you want to pass through.'}
               {mapMode === null && pickup && dropoff && 'Drag any pin to fine-tune. Grey lines are alternative routes.'}
-              {mapMode === null && !(pickup && dropoff) && 'Search or click the map.'}
+              {mapMode === null && !(pickup && dropoff) && 'Search or tap the map.'}
             </div>
 
             {pickup && dropoff && (
               <div className="route-tools">
-                <button type="button" className={`btn btn-light btn-sm ${mapMode === 'stop' ? 'on' : ''}`} disabled={stops.length >= 5} onClick={() => setMapMode(mapMode === 'stop' ? null : 'stop')}>
+                <button
+                  type="button"
+                  className={`btn btn-light btn-sm ${mapMode === 'stop' ? 'on' : ''}`}
+                  disabled={stops.length >= 5}
+                  onClick={() => setMapMode(mapMode === 'stop' ? null : 'stop')}
+                >
                   + Add a stop / via point
                 </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { const p = pickup; setPickup(dropoff); setDropoff(p); const t = pickupText; setPickupText(dropoffText); setDropoffText(t); }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    const p = pickup;
+                    setPickup(dropoff);
+                    setDropoff(p);
+                    const t = pickupText;
+                    setPickupText(dropoffText);
+                    setDropoffText(t);
+                  }}
+                >
                   ⇅ Swap
                 </button>
               </div>
@@ -319,6 +411,7 @@ export default function RideHome() {
                       <div>
                         <strong>
                           {q.label} <small>👤 {q.seats}</small>
+                          {q.surge_multiplier > 1 && <span className="tag tag-surge">×{q.surge_multiplier}</span>}
                         </strong>
                         <small>{q.description}</small>
                       </div>
@@ -327,11 +420,61 @@ export default function RideHome() {
                   ))}
                 </ul>
 
+                {quote?.surge_reason && <div className="surge-note">⚡ {quote.surge_reason}. Prices are higher than usual.</div>}
+
+                {/* ------------------------------ promo ------------------------------ */}
+                <div className="promo-box">
+                  {promoApplied && promoCheck?.ok ? (
+                    <div className="promo-applied">
+                      <span>
+                        <strong>{promoApplied}</strong> applied · you save {money(quote?.breakdown.discount ?? 0)}
+                      </span>
+                      <button className="icon-btn" onClick={() => setPromoApplied(null)}>✕</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="search-row">
+                        <span className="dot dot-stop">%</span>
+                        <input
+                          className="search-input"
+                          placeholder="Promo code"
+                          value={promoInput}
+                          onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                        />
+                        <button className="btn btn-light btn-sm" disabled={!promoInput.trim()} onClick={() => setPromoApplied(promoInput.trim())}>
+                          Apply
+                        </button>
+                      </div>
+                      {promoCheck && !promoCheck.ok && <div className="error">{promoCheck.reason}</div>}
+                      {offers.length > 0 && (
+                        <div className="chip-row">
+                          {offers.slice(0, 3).map((o) => (
+                            <button
+                              key={o.code}
+                              className="chip"
+                              title={o.description}
+                              onClick={() => {
+                                setPromoInput(o.code);
+                                setPromoApplied(o.code);
+                              }}
+                            >
+                              {o.code}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
                 {quote && (
                   <div className="fare-formula">
-                    {money(quote.breakdown.base_fare, quote.currency)} base + {money(quote.breakdown.per_km, quote.currency)}/km × {quote.breakdown.distance_km} km +{' '}
-                    {money(quote.breakdown.per_min, quote.currency)}/min × {quote.breakdown.duration_min} min + {money(quote.breakdown.booking_fee, quote.currency)} fee
-                    {quote.breakdown.min_fare_applied ? ` (min fare ${money(quote.breakdown.min_fare, quote.currency)})` : ''} ={' '}
+                    {money(quote.breakdown.base_fare, quote.currency)} base + {money(quote.breakdown.per_km, quote.currency)}/km ×{' '}
+                    {quote.breakdown.distance_km} km + {money(quote.breakdown.per_min, quote.currency)}/min × {quote.breakdown.duration_min} min +{' '}
+                    {money(quote.breakdown.booking_fee, quote.currency)} fee
+                    {quote.surge_multiplier > 1 ? ` (×${quote.surge_multiplier} demand)` : ''}
+                    {quote.breakdown.min_fare_applied ? ` (min fare ${money(quote.breakdown.min_fare, quote.currency)})` : ''}
+                    {quote.breakdown.discount > 0 ? ` − ${money(quote.breakdown.discount, quote.currency)} promo` : ''} ={' '}
                     <b>{money(quote.fare, quote.currency)}</b>
                   </div>
                 )}
@@ -339,13 +482,19 @@ export default function RideHome() {
                 <div className="payment-row">
                   <span>Pay with</span>
                   <div className="segmented small">
-                    {(['cash', 'card', 'wallet'] as const).map((p) => (
+                    {(['cash', 'wallet', 'card'] as const).map((p) => (
                       <button key={p} type="button" className={payment === p ? 'on' : ''} onClick={() => setPayment(p)}>
                         {p}
                       </button>
                     ))}
                   </div>
                 </div>
+                {payment === 'wallet' && (
+                  <div className={`call-note ${wallet && quote && wallet.balance < quote.fare ? 'error' : ''}`}>
+                    Wallet balance {money(wallet?.balance ?? 0)}
+                    {wallet && quote && wallet.balance < quote.fare ? ' — not enough for this ride.' : ''}
+                  </div>
+                )}
 
                 <button className="btn btn-primary btn-block btn-lg" disabled={busy || !quote} onClick={book}>
                   {busy ? 'Requesting…' : `Confirm ${quote?.label} · ${quote ? money(quote.fare, quote.currency) : ''}`}

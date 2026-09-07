@@ -18,7 +18,8 @@
     "docker:logs": "docker compose logs -f",
     "docker:down": "docker compose down",
     "android:build": "npm --prefix client run build:android && npm --prefix client exec cap sync android && cd client/android && gradlew assembleRelease",
-    "android:open": "npm --prefix client exec cap open android"
+    "android:open": "npm --prefix client exec cap open android",
+    "push:keys": "npm --prefix server run push:keys"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

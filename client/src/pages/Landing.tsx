@@ -1,17 +1,30 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { APP_NAME } from '../lib/brand';
+import DemoAccounts from '../components/DemoAccounts';
 
 export default function Landing() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const go = () => nav(user ? (user.role === 'driver' ? '/drive' : '/ride') : '/signup');
+  const [askLogin, setAskLogin] = useState(false);
+
+  /** Planning a ride needs an account, so prompt instead of failing silently. */
+  const start = () => {
+    if (user) {
+      nav(user.role === 'driver' ? '/drive' : '/ride');
+    } else {
+      setAskLogin(true);
+    }
+  };
 
   return (
     <main className="landing">
       <section className="hero">
         <div className="hero-copy">
-          <h1>Go anywhere. <em>Pick your own route.</em></h1>
+          <h1>
+            Go anywhere. <em>Pick your own route.</em>
+          </h1>
           <p className="lede">
             Request a ride, choose the road you want to take, and pay for exactly the kilometres you travel. No surge
             surprises: the price is on the screen before you tap.
@@ -20,24 +33,26 @@ export default function Landing() {
             className="hero-form"
             onSubmit={(e) => {
               e.preventDefault();
-              go();
+              start();
             }}
           >
             <label className="field">
               <span className="dot dot-pickup" />
-              <input placeholder="Enter pickup location" />
+              <input placeholder="Enter pickup location" readOnly onFocus={start} onClick={start} />
             </label>
             <label className="field">
               <span className="dot dot-dropoff" />
-              <input placeholder="Enter destination" />
+              <input placeholder="Enter destination" readOnly onFocus={start} onClick={start} />
             </label>
             <div className="hero-actions">
               <button className="btn btn-primary" type="submit">
                 See prices
               </button>
-              <Link to="/login" className="link">
-                Log in to see your recent activity
-              </Link>
+              {!user && (
+                <Link to="/login" className="link">
+                  Log in to see your recent activity
+                </Link>
+              )}
             </div>
           </form>
         </div>
@@ -85,6 +100,30 @@ export default function Landing() {
       </section>
 
       <footer className="footer">{APP_NAME} · a study project · maps © OpenStreetMap contributors</footer>
+
+      {askLogin && (
+        <div className="modal-backdrop" onClick={() => setAskLogin(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <h2>Log in first</h2>
+            <p className="muted">
+              You need an account to set a pickup, see prices and book a ride. It takes a few seconds, or use one of the demo
+              logins below.
+            </p>
+            <div className="row-actions">
+              <Link className="btn btn-primary" to="/login">
+                Log in
+              </Link>
+              <Link className="btn btn-light" to="/signup">
+                Create an account
+              </Link>
+              <button className="btn btn-ghost" onClick={() => setAskLogin(false)}>
+                Not now
+              </button>
+            </div>
+            <DemoAccounts />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

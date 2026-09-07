@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SwiftRide — Project Report</title>
+<style>
+  :root{
+    --ink:#111; --ink2:#3c3c3c; --muted:#6b6b6b; --line:#e4e4e4;
+    --bg:#fff; --bg2:#f6f6f6; --green:#0a7d43; --greenbg:#e7f6ee;
+    --amber:#8a5a00; --amberbg:#fff4d9; --red:#c0271a; --redbg:#fdecea;
+    --blue:#1d4ed8; --bluebg:#e8eeff;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 80px}
+  header.top{background:#000;color:#fff;padding:48px 24px 40px;margin-bottom:36px}
+  header.top .wrap{padding-bottom:0}
+  header.top h1{margin:0 0 8px;font-size:40px;letter-spacing:-.03em;font-weight:800}
+  header.top p{margin:0;color:#bbb;font-size:17px;max-width:640px}
+  header.top .meta{margin-top:20px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:#999}
+  header.top .meta b{color:#fff;font-weight:600}
+  h2{font-size:26px;letter-spacing:-.02em;margin:44px 0 6px;font-weight:800}
+  h2:first-of-type{margin-top:0}
+  h3{font-size:18px;margin:26px 0 6px;font-weight:700}
+  h2+.sub{color:var(--muted);margin:0 0 18px}
+  p{margin:0 0 14px}
+  a{color:var(--blue)}
+  code{background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:.9em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  pre{background:#0f0f0f;color:#eee;padding:14px 16px;border-radius:10px;overflow-x:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;color:inherit;padding:0}
+  hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:22px 0}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card .n{font-size:32px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+  .card .l{color:var(--muted);font-size:13px}
+  .card.good .n{color:var(--green)}
+  .card.warn .n{color:var(--amber)}
+
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin:14px 0 24px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--bg2);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  tbody tr:hover td{background:#fafafa}
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  .tbl-wrap table{margin:0}
+
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .p-done{background:var(--greenbg);color:var(--green)}
+  .p-part{background:var(--amberbg);color:var(--amber)}
+  .p-no{background:var(--redbg);color:var(--red)}
+  .p-free{background:var(--greenbg);color:var(--green)}
+  .p-paid{background:var(--amberbg);color:var(--amber)}
+  .p-you{background:var(--bluebg);color:var(--blue)}
+
+  .note{border-left:4px solid var(--line);background:var(--bg2);padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0}
+  .note.good{border-color:var(--green);background:var(--greenbg)}
+  .note.warn{border-color:var(--amber);background:var(--amberbg)}
+  .note.bad{border-color:var(--red);background:var(--redbg)}
+  .note p:last-child{margin:0}
+
+  ul.clean{padding-left:20px;margin:0 0 16px}
+  ul.clean li{margin-bottom:7px}
+  ol.steps{padding-left:20px}
+  ol.steps li{margin-bottom:10px}
+
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:18px 0}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg2)}
+  .shot img{display:block;width:100%;height:auto}
+  .shot figcaption{padding:9px 12px;font-size:13px;color:var(--muted);background:#fff;border-top:1px solid var(--line)}
+
+  .toc{background:var(--bg2);border-radius:12px;padding:18px 22px;margin-bottom:8px}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:30px}
+  .toc li{margin-bottom:5px}
+  @media(max-width:640px){.toc ol{columns:1}header.top h1{font-size:30px}}
+  @media print{header.top{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.shots{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>SwiftRide — Project Report</h1>
+    <p>A ride-hailing app where the customer picks the route and pays for the kilometres of that route. Built from nothing: website, phone app, server, database, admin panel.</p>
+    <div class="meta">
+      <span>Report date <b>7 September 2026</b></span>
+      <span>Version <b>0.3</b></span>
+      <span>Code <b>github.com/jashith123/uber_clone</b></span>
+      <span>Tests <b>27 passing</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<div class="toc">
+  <strong>What's in this report</strong>
+  <ol>
+    <li><a href="#summary">Where the project stands</a></li>
+    <li><a href="#works">Everything that works today</a></li>
+    <li><a href="#missing">What is still missing</a></li>
+    <li><a href="#free">Free vs paid, in plain words</a></li>
+    <li><a href="#costs">The actual money table</a></li>
+    <li><a href="#you">What I need from you</a></li>
+    <li><a href="#done-by-you">What you have already done</a></li>
+    <li><a href="#run">How to run and test it</a></li>
+    <li><a href="#screens">Screenshots</a></li>
+    <li><a href="#tech">How it is built</a></li>
+    <li><a href="#next">Suggested order of work</a></li>
+  </ol>
+</div>
+
+<h2 id="summary">1. Where the project stands</h2>
+<p class="sub">Short version: the app is complete enough to run a small pilot. What is missing is mostly paperwork and paid accounts, not code.</p>
+
+<div class="cards">
+  <div class="card good"><div class="n">61</div><div class="l">features working</div></div>
+  <div class="card warn"><div class="n">19</div><div class="l">still to do</div></div>
+  <div class="card"><div class="n">27</div><div class="l">automated tests, all passing</div></div>
+  <div class="card"><div class="n">~9,000</div><div class="l">lines of code written</div></div>
+</div>
+
+<div class="note good">
+  <p><strong>You can use it right now for:</strong> real rides between people you know, on your own phones, with cash payment. Everything works: booking, route choice, matching, tracking, chat, calls, PIN check, SOS, receipts, ratings, driver earnings, admin panel.</p>
+</div>
+
+<div class="note warn">
+  <p><strong>You cannot yet use it for:</strong> taking real card payments from strangers, or putting it on the Play Store. Both need accounts in your name and a bit of paperwork. Nothing more needs to be coded for the payment part; the code is written and waiting for your keys.</p>
+</div>
+
+<h2 id="works">2. Everything that works today</h2>
+<p class="sub">Every line below has been built and tested. The "who pays" column tells you whether that feature costs anything to run.</p>
+
+<h3>Riding</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td><strong>Pick your own route</strong></td><td>The map shows every route option. Tap one and the price changes with the kilometres. This is the whole point of the app.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Add stops on the way</td><td>Tap "add a stop" and tap the map. The route bends through that point, up to 5 stops.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Drag the pins</td><td>Move the pickup, drop-off or any stop to fine-tune the road you take.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Instant place suggestions</td><td>Tap the box before typing and you already see your recent places, popular places, and 26 well-known Delhi landmarks. Each letter you type narrows the list at once.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Address search</td><td>Search any address in the world from three letters onwards.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free*</span></td></tr>
+<tr><td>Four vehicle classes</td><td>Moto, Go, Comfort, XL. Each has its own base fare, per-km rate and minimum.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Transparent price</td><td>The full sum is printed on screen: base + per km × km + per min × min + booking fee.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Promo codes</td><td>Percent or flat discounts, with caps, minimum fares and per-rider limits. Three codes are set up already.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Surge pricing</td><td>Prices rise in busy areas, either from a zone you draw in the admin panel or automatically when riders outnumber cars. The base fare never surges.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Trip history and receipts</td><td>Every ride with the full fare breakdown.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+</tbody></table></div>
+<p style="font-size:13px;color:var(--muted);margin-top:-14px">* Free on the public map servers, which are rate-limited. See the costs table for what happens when you grow.</p>
+
+<h3>Matching riders with drivers</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td><strong>Smart dispatch</strong></td><td>A new ride is offered to the 3 nearest free drivers within 3 km, each with 20 seconds to answer. If nobody takes it, it widens to 6 km, then 10 km, then tells the rider nobody is free. Drivers no longer see rides they could never reach.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Offer card with countdown</td><td>The driver sees the fare, the distance to pickup, the route and a shrinking timer bar. Accept or Decline.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>First one wins, safely</td><td>Two drivers tapping Accept at the same instant cannot both get the ride. Tested.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Acceptance rate</td><td>Each driver's accept percentage is tracked and used to break ties between two equally near drivers.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Driver drops out</td><td>If a driver cancels after accepting, the rider is put straight back into the search instead of being stranded, and the driver is charged a penalty.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Live tracking and ETA</td><td>The rider watches the car move and sees the real road minutes to arrival, recalculated as the driver moves.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+</tbody></table></div>
+
+<h3>Talking and safety</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>In-ride chat</td><td>Text messages between rider and driver, saved, delivered instantly.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>In-app voice call</td><td>Call without giving out your phone number. Answer, decline, mute, timer.</td><td><span class="pill p-part">Works on Wi-Fi</span></td><td><span class="pill p-free">Free*</span></td></tr>
+<tr><td>Phone fallback</td><td>A button that opens the normal phone dialer.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td><strong>Trip PIN</strong></td><td>The rider sees 4 digits. The driver must type them to start the trip, so nobody gets into the wrong car. The driver is never shown the PIN.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Share my trip</td><td>A link anyone can open, with no account, to watch the car move on a map. Shows no phone numbers and only the rider's first name.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>SOS button</td><td>Alerts the admin panel instantly and shows the rider's saved emergency contacts for a one-tap call, plus a 112 button.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Emergency contacts</td><td>Save up to 5 people who appear when you press SOS.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Push notifications</td><td>"Driver accepted", "Driver arrived", new ride offers, new messages, incoming calls. Works with the app closed.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+</tbody></table></div>
+<p style="font-size:13px;color:var(--muted);margin-top:-14px">* Calls connect on the same Wi-Fi and on most home networks. Across two different mobile networks they may fail without a relay server. See the costs table.</p>
+
+<h3>Money</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Wallet</td><td>Riders add money, drivers collect earnings. Every rupee in and out is listed with a running balance.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Test payments</td><td>A built-in fake payment gateway so you can test the whole top-up flow without any account or real money.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td><strong>Real card / UPI payments</strong></td><td>The Razorpay checkout is fully coded, including the signature check that stops fake payments. It switches on the moment you paste your two keys.</td><td><span class="pill p-part">Needs your keys</span></td><td><span class="pill p-paid">2% per payment</span></td></tr>
+<tr><td>Platform commission</td><td>You keep 15% of every fare (changeable). On cash rides the commission is taken from the driver's wallet instead.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Cancellation fees</td><td>Free to cancel while searching and for 2 minutes after a driver accepts. After that the rider pays a fee that goes to the driver. A driver who cancels after accepting loses ₹20.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>+ and − everywhere</td><td>Green plus for money in, red minus for money out, on every screen, exactly as you asked.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Driver earnings breakdown</td><td>Fares collected, what reached the wallet, commission, penalties, take-home. The numbers always match the wallet balance.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Driver withdrawal</td><td>A driver can request a payout, which is recorded and deducted.</td><td><span class="pill p-part">Recorded only</span></td><td><span class="pill p-paid">See below</span></td></tr>
+</tbody></table></div>
+
+<h3>Accounts and running the business</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Rider and driver accounts</td><td>Separate sign-ups. Rider credentials cannot open the driver side and the other way round.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Stay logged in</td><td>Sessions last 90 days and renew themselves. A bad connection never logs you out.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Driver document upload</td><td>Licence, RC, insurance, permit and photo. Photos or PDFs up to 8 MB.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Driver approval</td><td>An admin approves or rejects each driver with a reason. Switch it on with one setting and no driver can go online until you approve them.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td><strong>Admin panel</strong></td><td>Eight screens: live figures, all rides, all users, driver approval, fare editing, promo codes, surge zones, SOS alerts.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Block a user</td><td>One tap. A blocked account cannot log in or go online.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Change fares live</td><td>Edit any tariff in the admin panel. New rides use the new price immediately, with no code change or restart.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+</tbody></table></div>
+
+<h3>Where it runs</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Website</td><td>Works in any browser, on phone and desktop.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Installable web app</td><td>Add to Home Screen on Android or iPhone and it opens full screen like a real app.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td><strong>Android APK</strong></td><td>A real signed Android app you can send to anyone and install.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Phone layout</td><td>Full-screen map with a bottom sheet and a bottom tab bar.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Docker</td><td>One command to run the whole thing on any server.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+<tr><td>Automated tests</td><td>27 tests covering fares, surge, promos, the wallet, dispatch and the ride state machine.</td><td><span class="pill p-done">Done</span></td><td><span class="pill p-free">Free</span></td></tr>
+</tbody></table></div>
+
+<h2 id="missing">3. What is still missing</h2>
+<p class="sub">Grouped by how much it matters. Nothing here is broken; these are things not built yet.</p>
+
+<h3>Before real strangers can use it</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Missing</th><th>Why it matters</th><th>Who unblocks it</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Phone number verification (OTP)</td><td>Right now anyone can sign up with a fake phone number. For real users you want an SMS code.</td><td><span class="pill p-you">You: SMS account</span></td><td>1 day</td></tr>
+<tr><td>Password reset</td><td>If someone forgets their password there is no way back in.</td><td>Me, once email or SMS is set up</td><td>Half a day</td></tr>
+<tr><td>Live payments switched on</td><td>Code is done. Needs your Razorpay account and business KYC.</td><td><span class="pill p-you">You: Razorpay</span></td><td>Minutes, after KYC</td></tr>
+<tr><td>Automatic driver payouts</td><td>Withdrawals are recorded but you would transfer the money by hand. Razorpay has a payouts product that can do it automatically.</td><td><span class="pill p-you">You: enable payouts</span></td><td>1 day</td></tr>
+<tr><td>Rate limiting and abuse protection</td><td>Stops someone hammering the server or brute-forcing passwords.</td><td>Me</td><td>Half a day</td></tr>
+<tr><td>Proper database (Postgres)</td><td>The current database is a single file. Fine for a pilot, not for hundreds of rides a day.</td><td>Me + a hosting account</td><td>1 day</td></tr>
+<tr><td>Your own map servers</td><td>The free public route server asks you not to use it heavily. Once you have real traffic you need your own.</td><td><span class="pill p-you">You: a server</span></td><td>1 day</td></tr>
+</tbody></table></div>
+
+<h3>Nice to have</h3>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Missing</th><th>What it would add</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Scheduled rides</td><td>Book a car for 6 am tomorrow.</td><td>1 day</td></tr>
+<tr><td>Ride sharing / pooling</td><td>Two riders going the same way share a car and split the fare.</td><td>3–4 days</td></tr>
+<tr><td>Call relay server (TURN)</td><td>Makes in-app calls work across any two mobile networks, not just Wi-Fi.</td><td>Half a day + a server</td></tr>
+<tr><td>iPhone app</td><td>An App Store version. The project is already set up for it; it needs a Mac.</td><td><span class="pill p-you">Needs a Mac</span> 1 day</td></tr>
+<tr><td>Play Store listing</td><td>So people can install from Google Play instead of a file.</td><td><span class="pill p-you">You: $25 once</span> 1 day</td></tr>
+<tr><td>Tolls and waiting charges</td><td>Add toll costs and charge for time the driver waits.</td><td>1 day</td></tr>
+<tr><td>Hindi and other languages</td><td>Whole app in more languages.</td><td>2 days</td></tr>
+<tr><td>Demand heat map for drivers</td><td>Shows drivers where the riders are.</td><td>1 day</td></tr>
+<tr><td>Referral system</td><td>"Invite a friend, both get ₹100."</td><td>1 day</td></tr>
+<tr><td>GST invoices</td><td>Proper tax invoices for riders and drivers.</td><td>1 day</td></tr>
+<tr><td>Weekly driver statements</td><td>An email or PDF each week showing what they earned.</td><td>1 day</td></tr>
+<tr><td>Automatic testing on every change</td><td>Runs the tests by itself so a broken change never reaches you.</td><td>Half a day</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>One honest note about the fares.</strong> The prices in the app (₹30 base, ₹12 per km for Go, and so on) are placeholders I chose to look plausible for Delhi. They are not researched. Before any real use, change them in the admin panel to numbers that actually make sense for your city and leave you a margin.</p>
+</div>
+
+<h2 id="free">4. Free vs paid, in plain words</h2>
+
+<h3>Free forever, no account, no card</h3>
+<p>Everything below costs nothing and will keep costing nothing, no matter how many people use it.</p>
+<ul class="clean">
+  <li><strong>The app itself.</strong> All the code is yours. There is no licence fee and nothing to renew.</li>
+  <li><strong>The database.</strong> SQLite is a free file on your server.</li>
+  <li><strong>Maps.</strong> OpenStreetMap tiles are free and need no key.</li>
+  <li><strong>Push notifications.</strong> I generated the keys on your machine. No Firebase account, no bill, ever.</li>
+  <li><strong>The Android app file.</strong> Android Studio is free and so is building an APK. You can send that file to as many people as you like.</li>
+  <li><strong>Running it on your own PC.</strong> Free. Only your electricity.</li>
+  <li><strong>The website version.</strong> Free to serve from your own machine or a server you already have.</li>
+  <li><strong>The test payment gateway.</strong> Free. You can practise the entire wallet flow without any payment account.</li>
+</ul>
+
+<h3>Free to start, costs money only when you grow</h3>
+<ul class="clean">
+  <li><strong>Route and address servers.</strong> The public ones are free but politely ask you not to use them heavily. Roughly speaking, a few hundred rides a day is fine. Beyond that you rent a small server (about ₹800 a month) and run your own copy. The software is free; you pay only for the machine.</li>
+  <li><strong>Hosting.</strong> Your PC is free but must stay on. A small always-on server costs around ₹400 to ₹800 a month.</li>
+  <li><strong>A public web address.</strong> A free tunnel gives you a temporary address that changes each time. A proper domain like swiftride.in costs about ₹900 a year.</li>
+</ul>
+
+<h3>Costs money from day one, if you want that feature</h3>
+<ul class="clean">
+  <li><strong>Taking card or UPI payments.</strong> Razorpay is free to open and has no monthly fee. They keep about 2% of each payment. On a ₹300 ride that is ₹6. You do need business documents (PAN, bank account, and usually GST) before they let you take live payments.</li>
+  <li><strong>SMS one-time codes.</strong> Roughly 15 to 25 paise per SMS in India. A thousand sign-ups is around ₹200.</li>
+  <li><strong>Google Play Store.</strong> A one-time $25, about ₹2,100, forever. Not a subscription.</li>
+  <li><strong>Apple App Store.</strong> $99 a year, about ₹8,300, and you need a Mac to build it.</li>
+  <li><strong>Call relay server.</strong> Only needed if you want in-app calls to work between two different mobile networks. Free software on a rented server (₹400 a month), or a pay-per-use service.</li>
+</ul>
+
+<div class="note good">
+  <p><strong>The cheapest honest path:</strong> keep cash payments, run it on your own PC with a free tunnel, hand out the APK file directly. That is ₹0 a month and you can carry real passengers tomorrow. Add the paid parts one at a time, only when you actually need them.</p>
+</div>
+
+<h2 id="costs">5. The actual money table</h2>
+<p class="sub">Prices as I understand them in September 2026. Check each provider's current page before you commit, because they change.</p>
+
+<div class="tbl-wrap"><table>
+<thead><tr><th>Thing</th><th>What it costs</th><th>When you need it</th><th>Needed now?</th></tr></thead>
+<tbody>
+<tr><td>The app, database, maps, push, APK</td><td><strong>₹0</strong></td><td>Never costs anything</td><td><span class="pill p-done">Already free</span></td></tr>
+<tr><td>Running on your own PC</td><td><strong>₹0</strong></td><td>Testing and small pilots</td><td><span class="pill p-done">Already working</span></td></tr>
+<tr><td>Free tunnel (temporary web address)</td><td><strong>₹0</strong></td><td>Letting people outside your Wi-Fi use it</td><td><span class="pill p-done">Already working</span></td></tr>
+<tr><td>Domain name (e.g. swiftride.in)</td><td>≈ ₹900 / year</td><td>When you want a permanent, professional address</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Small server to host it</td><td>≈ ₹400–800 / month</td><td>When it must be online without your PC</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Razorpay (cards, UPI)</td><td>₹0 to open · ≈ <strong>2% per payment</strong></td><td>When you want to take money in the app</td><td><span class="pill p-part">When you decide</span></td></tr>
+<tr><td>Razorpay payouts to drivers</td><td>≈ ₹3–5 per transfer</td><td>When you stop paying drivers by hand</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>SMS OTP (MSG91, Twilio…)</td><td>≈ ₹0.15–0.25 per SMS</td><td>When strangers start signing up</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Google Play Store</td><td><strong>$25 once</strong> (≈ ₹2,100)</td><td>When you want Play Store installs</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Apple App Store</td><td>$99 / year (≈ ₹8,300) + a Mac</td><td>When you want an iPhone app</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Own route server (self-hosted OSRM)</td><td>Software free · server ≈ ₹800 / month</td><td>Past a few hundred rides a day</td><td><span class="pill p-no">Not yet</span></td></tr>
+<tr><td>Call relay (TURN)</td><td>Free software · server ≈ ₹400 / month</td><td>If calls must work across mobile networks</td><td><span class="pill p-no">Not yet</span></td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>Two realistic budgets.</strong></p>
+  <p><strong>Testing with friends:</strong> ₹0 per month. Nothing to buy. This is where you are now.</p>
+  <p><strong>A small real service, 50–100 rides a day:</strong> roughly ₹1,500 a month (server + domain), plus about 2% of the money you collect, plus a one-time ₹2,100 if you want it on the Play Store.</p>
+</div>
+
+<h2 id="you">6. What I need from you</h2>
+<p class="sub">Nothing here is urgent. The app works without all of it. This is the list for when you want to go further.</p>
+
+<h3>Decisions only you can make</h3>
+<ol class="steps">
+  <li><strong>The name.</strong> "SwiftRide" is my placeholder. Changing it is one line in one file, so tell me the real name whenever you pick it. Some options I suggested: Waypoint, Apna Rasta, Marg, Meterly, TrueFare, Pathly.</li>
+  <li><strong>The real fares.</strong> Tell me your city and what you think a ride should cost, or edit them yourself in the admin panel under Fares. Right now they are guesses.</li>
+  <li><strong>Your commission.</strong> Currently 15% of each fare. Say the word and I will change it.</li>
+  <li><strong>Cancellation rules.</strong> Currently: 2 minutes free, then ₹30 for a Go ride; drivers lose ₹20 for cancelling. Change any of those numbers if you disagree.</li>
+  <li><strong>Do drivers need approval?</strong> Right now new drivers can start immediately. One setting makes them wait for you to approve their documents. Which do you want?</li>
+</ol>
+
+<h3>Accounts to open, when you are ready</h3>
+<ol class="steps">
+  <li><strong>Razorpay</strong> — only if you want card and UPI payments. Sign up at razorpay.com, complete the business KYC, then send me the two keys (Key ID and Key Secret). I paste them into one file and live payments are on. Do not put those keys in a chat message that others can read.</li>
+  <li><strong>An SMS provider</strong> (MSG91 or Twilio) — only if you want phone verification.</li>
+  <li><strong>A Google Play developer account</strong> — $25 once, only if you want Play Store distribution. You will also need a privacy policy page and some screenshots, which I can prepare.</li>
+  <li><strong>A hosting account</strong> — only when you want it online without your PC. Tell me your budget and I will pick one and set it up.</li>
+</ol>
+
+<h3>Things to test and tell me about</h3>
+<ol class="steps">
+  <li>Install the new APK on two phones and run a real ride end to end. Tell me anything that feels wrong.</li>
+  <li>Try the SOS button and the share-trip link. Confirm you are happy with what a stranger holding the link can see.</li>
+  <li>Try an in-app call between two phones on mobile data, not Wi-Fi. Tell me if the audio connects. That answers whether you need the relay server.</li>
+  <li>Open the admin panel and change a fare. Confirm the new price shows up in the app.</li>
+</ol>
+
+<h2 id="done-by-you">7. What you have already done</h2>
+<ul class="clean">
+  <li>Installed <strong>Android Studio</strong>, which is what made the real Android app possible. Without it there would only be a website.</li>
+  <li>Created the <strong>GitHub repository</strong> and had the code pushed to it, so nothing is trapped on one machine.</li>
+  <li>Set your <strong>git identity</strong>, and the earlier commits were rewritten to match it.</li>
+  <li>Provided an <strong>Android emulator</strong>, which let the APK be tested without a physical phone.</li>
+  <li>Made the product decisions that shaped it: customer-chosen routes, per-km pricing, the black-and-white look, plus and minus for money, cached logins, and the location suggestions.</li>
+</ul>
+<p>Nothing is pending from you to keep using what exists today.</p>
+
+<h2 id="run">8. How to run and test it</h2>
+
+<h3>On your PC</h3>
+<pre><code>cd C:\Projects\Ideas\Uber
+npm run install:all     # first time only
+npm run seed            # creates the demo accounts
+npm run serve           # website + app + API on http://localhost:4000</code></pre>
+
+<h3>On your phones</h3>
+<p>Install <code>dist-apk/SwiftRide-release.apk</code>. Make sure the phone is on the same Wi-Fi as the PC. The login screen already has your PC's address filled in. For testing away from home, run <code>npm run tunnel</code> on the PC and paste the printed address into the app.</p>
+
+<h3>Demo accounts</h3>
+<p>Password for every one of them is <code>password</code>. In the app you can tap "Copy all", or copy any email or password with one tap.</p>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Email</th><th>Who they are</th></tr></thead>
+<tbody>
+<tr><td><code>customer@demo.com</code></td><td>Rider (Asha) — starts with money in the wallet</td></tr>
+<tr><td><code>rider2@demo.com</code></td><td>Rider (Rahul)</td></tr>
+<tr><td><code>admin@demo.com</code></td><td>Rider <em>and</em> admin — use this one to open the admin panel</td></tr>
+<tr><td><code>driver@demo.com</code></td><td>Driver, Go class, white Swift Dzire</td></tr>
+<tr><td><code>driver2@demo.com</code></td><td>Driver, Comfort class, Honda City</td></tr>
+<tr><td><code>driver3@demo.com</code></td><td>Driver, XL class, Toyota Innova</td></tr>
+<tr><td><code>driver4@demo.com</code></td><td>Driver, Go class, Hyundai Aura</td></tr>
+</tbody></table></div>
+
+<h3>Promo codes you can try</h3>
+<ul class="clean">
+  <li><code>WELCOME50</code> — half off, up to ₹100, once per rider</li>
+  <li><code>FLAT30</code> — ₹30 off any ride over ₹100, five times per rider</li>
+  <li><code>WEEKEND20</code> — 20% off up to ₹60</li>
+</ul>
+
+<h3>The one thing that trips people up</h3>
+<div class="note warn">
+  <p>A ride needs a driver who is <strong>online</strong>, of the <strong>same vehicle class</strong>, and <strong>within 3 km</strong> of the pickup. If nothing happens after you book, open the driver app, tap "Go online", and switch on "Simulate GPS" so the car sits at a sensible place. The seeded drivers are all in central Delhi.</p>
+</div>
+
+<h2 id="screens">9. Screenshots</h2>
+<p class="sub">All taken from the running app.</p>
+<div class="shots">
+  <figure class="shot"><img src="screenshots/login-prompt.png" alt="Login prompt with demo accounts" /><figcaption>Logged-out users are asked to log in, with copyable demo accounts</figcaption></figure>
+  <figure class="shot"><img src="screenshots/ride-routes.png" alt="Route choice" /><figcaption>Choosing between routes; the fare follows the kilometres</figcaption></figure>
+  <figure class="shot"><img src="screenshots/driver-offer.png" alt="Driver offer with countdown" /><figcaption>The driver's offer card with a 20-second countdown</figcaption></figure>
+  <figure class="shot"><img src="screenshots/driver-pin.png" alt="Driver entering the rider's PIN" /><figcaption>The driver must type the rider's PIN to start the trip</figcaption></figure>
+  <figure class="shot"><img src="screenshots/wallet.png" alt="Wallet" /><figcaption>Wallet with the full plus and minus history</figcaption></figure>
+  <figure class="shot"><img src="screenshots/admin-overview.png" alt="Admin dashboard" /><figcaption>Admin panel: live figures across the whole service</figcaption></figure>
+  <figure class="shot"><img src="screenshots/admin-promos.png" alt="Admin promo codes" /><figcaption>Creating and switching off promo codes</figcaption></figure>
+  <figure class="shot"><img src="screenshots/mobile-ride.png" alt="Phone layout" /><figcaption>Phone layout: full-screen map with a bottom sheet</figcaption></figure>
+</div>
+
+<h2 id="tech">10. How it is built</h2>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Part</th><th>Chosen</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Website and app screens</td><td>React + TypeScript + Vite</td><td>Fast to build, catches mistakes before they run</td></tr>
+<tr><td>Maps</td><td>Leaflet + OpenStreetMap</td><td>Free, no key, no vendor lock-in</td></tr>
+<tr><td>Routing and addresses</td><td>OSRM + Nominatim</td><td>Free, gives real road routes and alternatives</td></tr>
+<tr><td>Server</td><td>Node.js + Express</td><td>Same language as the front end</td></tr>
+<tr><td>Live updates</td><td>Socket.IO</td><td>Instant offers, tracking, chat</td></tr>
+<tr><td>Database</td><td>SQLite (built into Node)</td><td>One file, nothing to install; swappable for Postgres later</td></tr>
+<tr><td>Logins</td><td>JWT + bcrypt</td><td>Standard, works for web and phone</td></tr>
+<tr><td>Phone app</td><td>Capacitor</td><td>Wraps the same code into a real Android app</td></tr>
+<tr><td>Notifications</td><td>Web Push (VAPID)</td><td>Free forever, no Firebase account</td></tr>
+<tr><td>Calls</td><td>WebRTC</td><td>Direct phone-to-phone audio, no per-minute cost</td></tr>
+</tbody></table></div>
+
+<h2 id="next">11. Suggested order of work</h2>
+<ol class="steps">
+  <li><strong>You test the new APK</strong> on two real phones and tell me what feels wrong. Everything else waits on this.</li>
+  <li><strong>Set the real fares and the name.</strong> Quick, and it makes the app feel like yours.</li>
+  <li><strong>Phone verification.</strong> The first thing that matters once people you do not know start signing up.</li>
+  <li><strong>Put it on a real server with a real address.</strong> About ₹1,500 a month, and then it works without your PC.</li>
+  <li><strong>Switch on live payments</strong> once you have the Razorpay account.</li>
+  <li><strong>Play Store</strong> when you want strangers to find it.</li>
+  <li><strong>Everything else</strong> (pooling, scheduling, iPhone) only when there is a real reason.</li>
+</ol>
+
+<hr />
+<p style="color:var(--muted);font-size:13px">
+  Written 7 September 2026. The full technical detail is in <code>docs/BUILD_REPORT.md</code> and the step-by-step test list is in <code>docs/TESTING_GUIDE.md</code>.
+  Prices are my best current understanding and should be checked with each provider before you commit money.
+</p>
+
+</div>
+</body>
+</html>

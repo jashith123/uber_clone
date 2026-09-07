@@ -5,6 +5,14 @@
  * computed from the kilometres of THAT route (plus a small time component and a
  * booking fee), floored at a minimum fare. Every number here is derived from a
  * pricing row so tariffs can be changed in the DB without touching code.
+ *
+ *   distance_charge = per_km  x km   x surge
+ *   time_charge     = per_min x min  x surge
+ *   subtotal        = base + distance_charge + time_charge + booking_fee
+ *   total           = max(subtotal, min_fare) - discount
+ *
+ * Surge never applies to the base fare or the booking fee, and the discount is
+ * applied after the minimum-fare floor so a promo can take a fare below it.
  */
 
 export function round2(n) {
@@ -15,17 +23,21 @@ export function round2(n) {
  * @param {object} pricing  row from the `pricing` table
  * @param {number} distanceKm
  * @param {number} durationMin
+ * @param {{surge?:number, discount?:number, surgeReason?:string|null}} [opts]
  * @returns {{ total:number, breakdown:object }}
  */
-export function computeFare(pricing, distanceKm, durationMin) {
+export function computeFare(pricing, distanceKm, durationMin, opts = {}) {
   const km = Math.max(0, Number(distanceKm) || 0);
   const min = Math.max(0, Number(durationMin) || 0);
+  const surge = Math.max(1, Number(opts.surge) || 1);
+  const wantedDiscount = Math.max(0, Number(opts.discount) || 0);
 
-  const distanceCharge = round2(pricing.per_km * km);
-  const timeCharge = round2(pricing.per_min * min);
-  const subtotal = round2(pricing.base_fare + distanceCharge + timeCharge);
-  const withFee = round2(subtotal + pricing.booking_fee);
-  const total = round2(Math.max(withFee, pricing.min_fare));
+  const distanceCharge = round2(pricing.per_km * km * surge);
+  const timeCharge = round2(pricing.per_min * min * surge);
+  const subtotal = round2(pricing.base_fare + distanceCharge + timeCharge + pricing.booking_fee);
+  const beforeDiscount = round2(Math.max(subtotal, pricing.min_fare));
+  const discount = round2(Math.min(wantedDiscount, beforeDiscount));
+  const total = round2(beforeDiscount - discount);
 
   return {
     total,
@@ -41,17 +53,22 @@ export function computeFare(pricing, distanceKm, durationMin) {
       time_charge: timeCharge,
       booking_fee: pricing.booking_fee,
       min_fare: pricing.min_fare,
-      min_fare_applied: withFee < pricing.min_fare,
-      subtotal: withFee,
+      min_fare_applied: subtotal < pricing.min_fare,
+      surge_multiplier: surge,
+      surge_reason: opts.surgeReason || null,
+      subtotal: beforeDiscount,
+      discount,
+      promo_code: opts.promoCode || null,
       total,
     },
   };
 }
 
 /** Quote every vehicle class for a given route. */
-export function quoteAll(pricingRows, distanceKm, durationMin) {
+export function quoteAll(pricingRows, distanceKm, durationMin, perTypeOpts = {}) {
   return pricingRows.map((p) => {
-    const { total, breakdown } = computeFare(p, distanceKm, durationMin);
+    const opts = perTypeOpts[p.vehicle_type] || perTypeOpts._all || {};
+    const { total, breakdown } = computeFare(p, distanceKm, durationMin, opts);
     return {
       vehicle_type: p.vehicle_type,
       label: p.label,
@@ -59,6 +76,8 @@ export function quoteAll(pricingRows, distanceKm, durationMin) {
       seats: p.seats,
       currency: p.currency,
       fare: total,
+      surge_multiplier: breakdown.surge_multiplier,
+      surge_reason: breakdown.surge_reason,
       breakdown,
     };
   });

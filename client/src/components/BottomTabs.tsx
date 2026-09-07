@@ -1,23 +1,27 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 /** Phone-only navigation (hidden on wide screens via CSS). */
 export default function BottomTabs() {
-  const { user, logout } = useAuth();
-  const nav = useNavigate();
+  const { user } = useAuth();
   if (!user) return null;
 
   const tabs =
     user.role === 'driver'
       ? [
           { to: '/drive', icon: '🚗', label: 'Drive' },
-          { to: '/drive/earnings', icon: '💰', label: 'Earnings' },
-          { to: '/drive/vehicle', icon: '🪪', label: 'Vehicle' },
+          { to: '/drive/earnings', icon: '📈', label: 'Earnings' },
+          { to: '/wallet', icon: '💰', label: 'Wallet' },
+          { to: '/drive/documents', icon: '🪪', label: 'Docs' },
         ]
       : [
           { to: '/ride', icon: '📍', label: 'Ride' },
           { to: '/trips', icon: '🧾', label: 'Trips' },
+          { to: '/wallet', icon: '💰', label: 'Wallet' },
+          { to: '/safety', icon: '🛡️', label: 'Safety' },
         ];
+
+  if (user.is_admin) tabs.push({ to: '/admin', icon: '⚙️', label: 'Admin' });
 
   return (
     <nav className="tabbar" aria-label="Main">
@@ -29,18 +33,6 @@ export default function BottomTabs() {
           {t.label}
         </NavLink>
       ))}
-      <button
-        type="button"
-        onClick={() => {
-          logout();
-          nav('/');
-        }}
-      >
-        <span className="tab-icon" aria-hidden>
-          🚪
-        </span>
-        Log out
-      </button>
     </nav>
   );
 }

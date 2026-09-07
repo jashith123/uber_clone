@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { apiBase, isNativeApp, setApiBase } from '../lib/api';
 import type { Role } from '../lib/types';
+import DemoAccounts from '../components/DemoAccounts';
 
 const ROLE_KEY = 'swiftride.loginRole';
 
@@ -35,7 +36,7 @@ export default function Login() {
     setBusy(true);
     setError(null);
     try {
-      setApiBase(server);
+      if (isNativeApp()) setApiBase(server);
       try {
         localStorage.setItem(ROLE_KEY, role);
       } catch {
@@ -74,17 +75,17 @@ export default function Login() {
           Password
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
         </label>
-        {showServer ? (
+        {isNativeApp() && (showServer ? (
           <label>
             Server address
             <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://192.168.29.217:4000 or https://xxx.loca.lt" inputMode="url" />
-            <small className="muted">The PC running "npm run serve", or the tunnel URL. Leave empty on the website.</small>
+            <small className="muted">The PC running &quot;npm run serve&quot;, or the tunnel address.</small>
           </label>
         ) : (
           <button type="button" className="link" onClick={() => setShowServer(true)}>
-            Advanced: set server address
+            Advanced: change server address
           </button>
-        )}
+        ))}
         {error && <div className="error">{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Logging in…' : role === 'driver' ? 'Log in to drive' : 'Log in to ride'}
@@ -92,28 +93,13 @@ export default function Login() {
         <p className="muted">
           New here? <Link to={`/signup?role=${role}`}>Create a {role === 'driver' ? 'driver' : 'rider'} account</Link>
         </p>
-        <div className="demo-box">
-          <strong>Demo accounts</strong>
-          {role === 'customer' ? (
-            <>
-              <button type="button" className="link" onClick={() => { setEmail('customer@demo.com'); setPassword('password'); }}>
-                customer@demo.com / password
-              </button>
-              <button type="button" className="link" onClick={() => { setEmail('rider2@demo.com'); setPassword('password'); }}>
-                rider2@demo.com / password
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="link" onClick={() => { setEmail('driver@demo.com'); setPassword('password'); }}>
-                driver@demo.com / password (Go)
-              </button>
-              <button type="button" className="link" onClick={() => { setEmail('driver2@demo.com'); setPassword('password'); }}>
-                driver2@demo.com / password (Comfort)
-              </button>
-            </>
-          )}
-        </div>
+        <DemoAccounts
+          role={role}
+          onUse={(a) => {
+            setEmail(a.email);
+            setPassword(a.password);
+          }}
+        />
       </form>
     </main>
   );

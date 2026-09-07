@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { APP_NAME } from '../lib/brand';
 
 export default function TopNav() {
-  const { user, logout } = useAuth();
+  const { user, logout, offline } = useAuth();
   const nav = useNavigate();
   return (
     <header className="topnav">
@@ -15,15 +15,20 @@ export default function TopNav() {
           <>
             <NavLink to="/ride">Ride</NavLink>
             <NavLink to="/trips">My trips</NavLink>
+            <NavLink to="/wallet">Wallet</NavLink>
+            <NavLink to="/safety">Safety</NavLink>
           </>
         )}
         {user?.role === 'driver' && (
           <>
             <NavLink to="/drive">Drive</NavLink>
             <NavLink to="/drive/earnings">Earnings</NavLink>
+            <NavLink to="/wallet">Wallet</NavLink>
+            <NavLink to="/drive/documents">Documents</NavLink>
             <NavLink to="/drive/vehicle">Vehicle</NavLink>
           </>
         )}
+        {user?.is_admin ? <NavLink to="/admin">Admin</NavLink> : null}
         {!user && (
           <>
             <NavLink to="/ride">Ride</NavLink>
@@ -32,6 +37,7 @@ export default function TopNav() {
         )}
       </nav>
       <div className="topnav-right">
+        {offline && <span className="offline-dot" title="Cannot reach the server; showing your saved session">offline</span>}
         {user ? (
           <>
             <span className="topnav-user">

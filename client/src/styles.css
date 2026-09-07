@@ -1572,3 +1572,521 @@ h4 {
     font-size: 30px;
   }
 }
+
+/* =====================================================================
+   Phase 6: wallet, promos, offers, safety, onboarding, admin
+   ===================================================================== */
+
+/* ---------- small shared bits ---------- */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0;
+}
+.chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--pill);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink);
+}
+.chip:hover,
+.chip.on {
+  border-color: var(--ink);
+  background: var(--bg-2);
+}
+.chip-ok {
+  border-color: #9bd8b6;
+  background: #eaf9f1;
+}
+.chip-warn {
+  border-color: #f0d38a;
+  background: #fff8e6;
+}
+.chip-missing {
+  border-color: #f0b8b2;
+  background: #fdecea;
+  color: var(--red);
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.ellipsis {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-green {
+  background: var(--green);
+}
+.tag-surge {
+  background: var(--amber);
+  color: #4a3200;
+}
+.hint-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.hint-bar span {
+  flex: 1;
+}
+.offline-dot {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: var(--pill);
+  padding: 3px 8px;
+  font-weight: 600;
+}
+.surge-note {
+  background: #fff8e6;
+  color: #8a5a00;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+/* ---------- wallet ---------- */
+.wallet-hero {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.wallet-hero small {
+  color: var(--muted);
+}
+.wallet-hero strong {
+  font-size: 38px;
+  letter-spacing: -0.03em;
+}
+.wallet-hero span {
+  font-size: 13px;
+}
+.breakdown {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+/* ---------- promo ---------- */
+.promo-box {
+  margin: 10px 0;
+  display: grid;
+  gap: 8px;
+}
+.promo-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #eaf9f1;
+  color: #05753f;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+/* ---------- PIN + safety ---------- */
+.pin-box {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.pin-box small {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+.pin-box strong {
+  font-size: 34px;
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+  padding-left: 0.3em;
+}
+.pin-entry {
+  display: grid;
+  gap: 6px;
+}
+.pin-entry label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pin-entry input {
+  border: 2px solid var(--line);
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 26px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.pin-entry input:focus {
+  border-color: var(--ink);
+  background: #fff;
+}
+.safety-row {
+  display: flex;
+  gap: 8px;
+}
+.safety-row .btn {
+  flex: 1;
+}
+.sos-panel {
+  display: grid;
+  gap: 8px;
+  background: #fdecea;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 14px;
+}
+.sos-panel small {
+  color: var(--ink-2);
+}
+.sos-open {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(214, 59, 47, 0.12);
+}
+.contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.contact-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.contact-list span {
+  display: grid;
+}
+.contact-list small {
+  color: var(--muted);
+}
+
+/* ---------- driver offers ---------- */
+.offer {
+  position: relative;
+  overflow: hidden;
+  border-width: 2px;
+}
+.offer.urgent {
+  border-color: var(--red);
+}
+.offer-timer {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--bg-3);
+}
+.offer-timer span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transition: width 0.5s linear;
+}
+.offer.urgent .offer-timer span {
+  background: var(--red);
+}
+.offer-actions {
+  display: flex;
+  gap: 8px;
+}
+.offer-actions .btn-primary {
+  flex: 1;
+}
+
+/* ---------- driver documents ---------- */
+.doc-status {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.doc-status p {
+  margin: 0;
+}
+.doc-approved {
+  border-left: 4px solid var(--green);
+}
+.doc-pending {
+  border-left: 4px solid var(--amber);
+}
+.doc-rejected {
+  border-left: 4px solid var(--red);
+}
+.doc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.doc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.doc-head > div {
+  display: grid;
+  gap: 2px;
+}
+.doc-head small {
+  color: var(--muted);
+}
+.doc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.doc-number {
+  flex: 1;
+  min-width: 140px;
+  border: 0;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+.doc-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+/* ---------- admin ---------- */
+.admin {
+  max-width: 1200px;
+}
+.tab-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  padding-bottom: 8px;
+}
+.tab-row button {
+  border: 0;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: var(--pill);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-row button:hover {
+  background: var(--bg-2);
+}
+.tab-row button.on {
+  background: var(--ink);
+  color: #fff;
+}
+.pill {
+  background: var(--amber);
+  color: #4a3200;
+  border-radius: var(--pill);
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pill-red {
+  background: var(--red);
+  color: #fff;
+}
+.admin-search {
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+table.data th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--bg-2);
+  position: sticky;
+  top: 0;
+}
+table.data tr:last-child td {
+  border-bottom: 0;
+}
+table.data tr:hover td {
+  background: #fafafa;
+}
+.row-muted td {
+  opacity: 0.55;
+}
+.cell-input {
+  width: 84px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+  outline: none;
+}
+.cell-input:focus {
+  border-color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .ellipsis {
+    max-width: 150px;
+  }
+  .wallet-hero strong {
+    font-size: 30px;
+  }
+  .safety-row {
+    flex-direction: column;
+  }
+}
+
+/* ---------- login-required modal ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 2000;
+}
+.modal {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+.modal h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.modal p {
+  margin: 0;
+}
+
+/* ---------- demo account list with copy buttons ---------- */
+.demo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.demo-note {
+  font-size: 12px;
+  margin: 0;
+}
+.demo-note code {
+  background: #fff;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+.demo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.demo-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.demo-fill {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 1px;
+  padding: 0;
+  min-width: 0;
+}
+.demo-email {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.demo-fill small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.demo-copies {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.demo-copies .chip {
+  padding: 4px 9px;
+  font-size: 12px;
+}

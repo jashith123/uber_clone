@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db.js';
 import { hashPassword, verifyPassword, signToken, requireAuth, loadUser, RENEW_AFTER_SECONDS } from '../auth.js';
+import { config } from '../config.js';
+import { getWallet } from '../services/payments.js';
 
 export const authRouter = Router();
 
@@ -16,15 +18,20 @@ authRouter.post('/register', (req, res) => {
   const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (exists) return res.status(409).json({ error: 'An account with that email already exists' });
 
-  const insert = db.prepare('INSERT INTO users (role, name, email, phone, password_hash) VALUES (?,?,?,?,?)');
-  const result = insert.run(role, String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hashPassword(password));
+  const isAdmin = config.adminEmails.includes(String(email).trim().toLowerCase()) ? 1 : 0;
+  const insert = db.prepare('INSERT INTO users (role, name, email, phone, password_hash, is_admin) VALUES (?,?,?,?,?,?)');
+  const result = insert.run(role, String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hashPassword(password), isAdmin);
   const id = Number(result.lastInsertRowid);
+  getWallet(id); // every account gets a wallet from day one
 
   if (role === 'driver') {
     const v = vehicle || {};
     db.prepare(
-      'INSERT INTO driver_profiles (user_id, vehicle_type, vehicle_make, vehicle_model, vehicle_color, plate) VALUES (?,?,?,?,?,?)',
-    ).run(id, v.vehicle_type || 'economy', v.make || null, v.model || null, v.color || null, v.plate || null);
+      'INSERT INTO driver_profiles (user_id, vehicle_type, vehicle_make, vehicle_model, vehicle_color, plate, approval_status) VALUES (?,?,?,?,?,?,?)',
+    ).run(
+      id, v.vehicle_type || 'economy', v.make || null, v.model || null, v.color || null, v.plate || null,
+      config.requireDriverApproval ? 'pending' : 'approved',
+    );
   }
 
   const user = loadUser(id);
@@ -42,6 +49,9 @@ authRouter.post('/login', (req, res) => {
   const row = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).trim());
   if (!row || !verifyPassword(password, row.password_hash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
+  }
+  if (row.is_blocked) {
+    return res.status(403).json({ error: 'This account has been blocked. Contact support.' });
   }
   if (role && ['customer', 'driver'].includes(role) && row.role !== role) {
     const wanted = role === 'driver' ? 'driver' : 'rider';

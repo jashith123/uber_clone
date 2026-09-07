@@ -5,16 +5,19 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node --watch --no-warnings=ExperimentalWarning src/index.js",
-    "start": "node --no-warnings=ExperimentalWarning src/index.js",
-    "seed": "node --no-warnings=ExperimentalWarning src/seed.js",
-    "test": "node --test --no-warnings=ExperimentalWarning"
+    "dev": "node --watch --env-file-if-exists=.env --no-warnings=ExperimentalWarning src/index.js",
+    "start": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning src/index.js",
+    "seed": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning src/seed.js",
+    "test": "node --test --no-warnings=ExperimentalWarning",
+    "push:keys": "node scripts/gen-vapid.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "socket.io": "^4.8.1"
+    "multer": "^2.3.0",
+    "socket.io": "^4.8.1",
+    "web-push": "^3.6.7"
   }
 }

@@ -321,3 +321,61 @@ The user has Android Studio, so the web app was wrapped into a native Android ap
 - **Stay logged in.** Root cause of the logouts: the app discarded the saved session on *any* start-up error, including "server unreachable" (phone opened before Wi-Fi connected). Now only a definite 401 logs you out; the user profile is cached locally so the app opens signed-in instantly and re-validates in the background (also whenever it returns to the foreground). Sessions last 90 days and the server hands back a fresh token once a day while the app is used.
 - **Role-locked login.** The login screen has an "I'm a rider / I'm a driver" switch; the server refuses credentials of the wrong kind with an explanatory message, and the post-login redirect only follows a deep link that belongs to that role's side of the app.
 - **Instant suggestions.** New `GET /api/geo/suggest?q=` returns, in order: the user's recent pickups/drop-offs, everyone's popular places, and a seeded list of Delhi NCR landmarks. It answers from zero characters and filters on every keystroke (every typed word must appear in the name or address; matches at the start of the name rank first). From three characters the existing address search (Nominatim) is merged in below, deduplicated by distance. The landmark list lives in `server/src/services/places.js`.
+
+---
+
+## 17. Phase 6: dispatch, payments, safety, onboarding, admin
+
+The largest phase so far. Nine new database tables, seven new services, five new API routers and six new screens.
+
+### Dispatch engine (`server/src/services/dispatch.js`)
+
+Requests are no longer broadcast to every online driver. A new ride is offered in waves:
+
+| Wave | Radius | Drivers | Window |
+| --- | --- | --- | --- |
+| 1 | 3 km | 3 nearest free | 20 s |
+| 2 | 6 km | 3 more | 20 s |
+| 3 | 10 km | 3 more | 20 s |
+| — | — | none left | rider told |
+
+Candidates must be online, approved, unblocked, free, of the right class, and not already holding an open offer. Ties between equally near drivers are broken by acceptance rate, which is tracked per driver. Timers live in memory; `resumePendingDispatch()` restarts any search that was live when the server stopped. Accepting is still a single conditional UPDATE, so the race is impossible to lose twice.
+
+### Money (`services/payments.js`)
+
+- `wallets` plus a signed `wallet_transactions` ledger; the ledger is the single source of truth, so the driver's earnings screen can never disagree with their balance.
+- Two gateways behind one interface: a built-in **mock** (default, no account, top-ups succeed instantly) and **Razorpay** over plain REST, including HMAC signature verification. Switching is one env var.
+- `settleRide()` splits the fare: wallet and card rides credit the driver net of commission; cash rides leave the fare with the driver and debit the commission from their wallet instead.
+- `settleCancellation()` moves the late-cancellation fee from rider to driver, and the penalty out of the driver.
+
+### Pricing (`services/surge.js`, `services/promos.js`, rewritten `services/fare.js`)
+
+Surge takes the higher of an admin-drawn zone and live demand (waiting riders vs online drivers within 5 km), capped at ×2.5, and multiplies only the distance and time components. Promo codes support percent and flat discounts with caps, minimum fares, per-user and total limits; the discount is applied after the minimum-fare floor.
+
+### Safety (`services/safety.js`)
+
+- **Trip PIN**: 4 digits generated per ride, shown only to the rider (`serializeRide` takes a `viewerId` and nulls the PIN for anyone else), required to move a ride to `in_progress`.
+- **Share link**: `/t/:token` is public and unauthenticated, exposing the route and vehicle but no phone numbers and only the rider's first name.
+- **SOS**: writes an alert, pushes it to every admin in real time, and returns the user's emergency contacts for a one-tap call.
+
+### Notifications (`services/push.js`)
+
+Web Push with VAPID keys generated locally by `npm run push:keys`, which writes them straight into `server/.env`. No Firebase, no account, no cost. Sends are fire-and-forget and never fail the ride action that triggered them; dead subscriptions (404/410) are pruned automatically. The service worker handles `push` and `notificationclick`, focusing an existing window where possible.
+
+### Onboarding and admin
+
+Driver documents upload through Multer to `server/data/uploads` with a type and size limit. `REQUIRE_DRIVER_APPROVAL` gates going online. The admin panel is one page with eight tabs, backed by `routes/admin.js`: stats, rides (with the dispatch trail per ride), users (block, wallet adjustment), driver approval, live fare editing, promo CRUD, surge zones, and SOS handling.
+
+### Bugs found and fixed during this phase
+
+1. **Driver earnings disagreed with the wallet.** The endpoint summed gross fares while the wallet held the post-commission amount. Rewritten to read the wallet ledger, so the two can never diverge.
+2. **The promo summary reported the wrong class.** `/geo/routes` returned the discount of whichever class was iterated first (Moto), not the selected one. It now reports validity only; each quote carries its own discount.
+3. **A stale server address broke the website.** `apiBase()` read a saved value that native-app testing had left in the same browser, so the site called a LAN address and every request timed out. The saved address is now honoured only inside the Capacitor shell; the website always uses its own origin.
+4. **The ride panel blocked for six seconds.** The initial load awaited geolocation alongside the data fetches, leaving the panel on "Loading…" until the browser answered. Geolocation is now fired separately and only recentres the map when it arrives.
+
+### Also in this phase
+
+- Login prompt for logged-out visitors who tap the landing-page location fields.
+- Demo credentials as a shared component with per-field and copy-all clipboard buttons.
+- 15 new tests (27 total) covering dispatch, the wallet, promos, surge and the PIN.
+- `docs/report.html`: a plain-language status report covering what works, what does not, what is free, what costs money, and what is needed from the user.

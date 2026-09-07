@@ -6,18 +6,32 @@ import BottomTabs from './components/BottomTabs';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Wallet from './pages/Wallet';
+import Safety from './pages/Safety';
+import Admin from './pages/Admin';
+import TrackTrip from './pages/TrackTrip';
 import RideHome from './pages/customer/RideHome';
 import Trips from './pages/customer/Trips';
 import DriverHome from './pages/driver/DriverHome';
 import DriverEarnings from './pages/driver/DriverEarnings';
 import DriverVehicle from './pages/driver/DriverVehicle';
+import DriverDocuments from './pages/driver/DriverDocuments';
 
-function Protected({ role, children }: { role: Role; children: JSX.Element }) {
+function Protected({ role, children }: { role?: Role; children: JSX.Element }) {
   const { user, loading } = useAuth();
   const loc = useLocation();
   if (loading) return <div className="center muted">Loading…</div>;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
-  if (user.role !== role) return <Navigate to={user.role === 'driver' ? '/drive' : '/ride'} replace />;
+  if (role && user.role !== role) return <Navigate to={user.role === 'driver' ? '/drive' : '/ride'} replace />;
+  return children;
+}
+
+function AdminOnly({ children }: { children: JSX.Element }) {
+  const { user, loading } = useAuth();
+  const loc = useLocation();
+  if (loading) return <div className="center muted">Loading…</div>;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (!user.is_admin) return <Navigate to={user.role === 'driver' ? '/drive' : '/ride'} replace />;
   return children;
 }
 
@@ -29,46 +43,23 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/ride"
-          element={
-            <Protected role="customer">
-              <RideHome />
-            </Protected>
-          }
-        />
-        <Route
-          path="/trips"
-          element={
-            <Protected role="customer">
-              <Trips />
-            </Protected>
-          }
-        />
-        <Route
-          path="/drive"
-          element={
-            <Protected role="driver">
-              <DriverHome />
-            </Protected>
-          }
-        />
-        <Route
-          path="/drive/earnings"
-          element={
-            <Protected role="driver">
-              <DriverEarnings />
-            </Protected>
-          }
-        />
-        <Route
-          path="/drive/vehicle"
-          element={
-            <Protected role="driver">
-              <DriverVehicle />
-            </Protected>
-          }
-        />
+        {/* Public trip tracking: no account needed. */}
+        <Route path="/t/:token" element={<TrackTrip />} />
+
+        <Route path="/ride" element={<Protected role="customer"><RideHome /></Protected>} />
+        <Route path="/trips" element={<Protected role="customer"><Trips /></Protected>} />
+
+        <Route path="/drive" element={<Protected role="driver"><DriverHome /></Protected>} />
+        <Route path="/drive/earnings" element={<Protected role="driver"><DriverEarnings /></Protected>} />
+        <Route path="/drive/vehicle" element={<Protected role="driver"><DriverVehicle /></Protected>} />
+        <Route path="/drive/documents" element={<Protected role="driver"><DriverDocuments /></Protected>} />
+
+        {/* Both roles */}
+        <Route path="/wallet" element={<Protected><Wallet /></Protected>} />
+        <Route path="/safety" element={<Protected><Safety /></Protected>} />
+
+        <Route path="/admin" element={<AdminOnly><Admin /></AdminOnly>} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BottomTabs />

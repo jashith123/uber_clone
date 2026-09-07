@@ -1,11 +1,16 @@
 /**
  * Ride domain logic: creation, state machine, matching helpers.
- * Realtime notifications are emitted through an injected `emit` (see realtime.js)
+ * Realtime notifications are emitted through an injected notifier (see realtime.js)
  * so this module stays testable without sockets.
  */
 import { db } from '../db.js';
 import { fetchRoutes } from './geo.js';
 import { computeFare } from './fare.js';
+import { surgeAt } from './surge.js';
+import { quotePromo, redeemPromo } from './promos.js';
+import { makePin, makeShareToken } from './safety.js';
+import { settleRide, settleCancellation } from './payments.js';
+import * as dispatch from './dispatch.js';
 
 export const RIDE_STATES = ['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'];
 const ACTIVE_STATES = ['requested', 'accepted', 'arrived', 'in_progress'];
@@ -53,19 +58,25 @@ const stmts = {
   insert: db.prepare(`
     INSERT INTO rides (customer_id, vehicle_type, pickup_lat, pickup_lng, pickup_address,
       dropoff_lat, dropoff_lng, dropoff_address, waypoints, route_index, route_geometry,
-      distance_km, duration_min, fare_estimate, fare_breakdown, currency, payment_method)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+      distance_km, duration_min, fare_estimate, fare_breakdown, currency, payment_method,
+      pin, share_token, surge_multiplier, promo_code, discount)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
   event: db.prepare('INSERT INTO ride_events (ride_id, actor_id, type, payload) VALUES (?,?,?,?)'),
   user: db.prepare('SELECT id, name, phone, role FROM users WHERE id = ?'),
   driverProfile: db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?'),
+  setEta: db.prepare('UPDATE rides SET driver_eta_min = ? WHERE id = ?'),
 };
 
 export function logEvent(rideId, actorId, type, payload) {
   stmts.event.run(rideId, actorId ?? null, type, payload ? JSON.stringify(payload) : null);
 }
 
-/** Hydrate a ride row into the API shape (parsed JSON + participants). */
-export function serializeRide(row) {
+/**
+ * Hydrate a ride row into the API shape.
+ * `viewerId` decides who may see the PIN: the rider always, the driver never
+ * (they have to be told it), so the PIN actually proves identity.
+ */
+export function serializeRide(row, viewerId = null) {
   if (!row) return null;
   const customer = stmts.user.get(row.customer_id);
   let driver = null;
@@ -87,8 +98,11 @@ export function serializeRide(row) {
         }
       : null;
   }
+  const isRider = viewerId == null || viewerId === row.customer_id;
   return {
     ...row,
+    pin: isRider ? row.pin : null,
+    pin_required: Boolean(row.pin),
     waypoints: JSON.parse(row.waypoints),
     route_geometry: JSON.parse(row.route_geometry),
     fare_breakdown: JSON.parse(row.fare_breakdown),
@@ -98,13 +112,29 @@ export function serializeRide(row) {
   };
 }
 
-export function getRide(id) {
-  return serializeRide(stmts.ride.get(id));
+export function getRide(id, viewerId = null) {
+  return serializeRide(stmts.ride.get(id), viewerId);
 }
 
 export function activeRideForUser(user) {
   const row = user.role === 'driver' ? stmts.activeForDriver.get(user.id) : stmts.activeForCustomer.get(user.id);
-  return serializeRide(row);
+  return serializeRide(row, user.id);
+}
+
+/** Both sides of a ride, each seeing their own view. */
+function broadcast(rideId, event = 'ride:update') {
+  const row = stmts.ride.get(rideId);
+  if (!row) return null;
+  notify(event, {
+    ride_id: rideId,
+    customer_id: row.customer_id,
+    driver_id: row.driver_id,
+    vehicle_type: row.vehicle_type,
+    status: row.status,
+    forCustomer: serializeRide(row, row.customer_id),
+    forDriver: row.driver_id ? serializeRide(row, row.driver_id) : null,
+  });
+  return row;
 }
 
 /**
@@ -113,7 +143,7 @@ export function activeRideForUser(user) {
  * trusted data, never from numbers the client sent.
  */
 export async function createRide(customer, body) {
-  const { waypoints, route_index = 0, vehicle_type, payment_method = 'cash' } = body || {};
+  const { waypoints, route_index = 0, vehicle_type, payment_method = 'cash', promo_code = null } = body || {};
   if (!Array.isArray(waypoints) || waypoints.length < 2) {
     throw Object.assign(new Error('waypoints must contain pickup and dropoff'), { status: 400 });
   }
@@ -134,11 +164,27 @@ export async function createRide(customer, body) {
   const routes = await fetchRoutes(waypoints);
   const route = routes[Math.min(Math.max(0, Number(route_index) || 0), routes.length - 1)];
   if (route.distance_km < 0.2) {
-    throw Object.assign(new Error('Pickup and drop-off are too close together. Choose a destination at least 200 m away.'), { status: 400 });
+    throw Object.assign(new Error('Pickup and drop-off are too close together'), { status: 400 });
   }
-  const { total, breakdown } = computeFare(pricing, route.distance_km, route.duration_min);
 
   const pickup = waypoints[0];
+  const surge = surgeAt({ lat: pickup.lat, lng: pickup.lng }, vehicle_type);
+
+  // Price once without a discount to judge the promo against the real fare.
+  const gross = computeFare(pricing, route.distance_km, route.duration_min, {
+    surge: surge.multiplier,
+    surgeReason: surge.reason,
+  });
+  const promo = promo_code ? quotePromo(customer, promo_code, gross.total) : { ok: false, discount: 0 };
+  if (promo_code && !promo.ok) throw Object.assign(new Error(promo.reason), { status: 400 });
+
+  const { total, breakdown } = computeFare(pricing, route.distance_km, route.duration_min, {
+    surge: surge.multiplier,
+    surgeReason: surge.reason,
+    discount: promo.discount,
+    promoCode: promo.ok ? promo.code : null,
+  });
+
   const dropoff = waypoints[waypoints.length - 1];
   const result = stmts.insert.run(
     customer.id,
@@ -158,43 +204,50 @@ export async function createRide(customer, body) {
     JSON.stringify(breakdown),
     pricing.currency,
     payment_method,
+    makePin(),
+    makeShareToken(),
+    surge.multiplier,
+    promo.ok ? promo.code : null,
+    promo.discount || 0,
   );
-  const ride = getRide(Number(result.lastInsertRowid));
-  logEvent(ride.id, customer.id, 'requested', { fare: total, distance_km: route.distance_km });
-  notify('ride:new', ride);
-  return ride;
+  const rideId = Number(result.lastInsertRowid);
+  if (promo.ok) redeemPromo(customer, promo.code, rideId, promo.discount);
+
+  logEvent(rideId, customer.id, 'requested', { fare: total, distance_km: route.distance_km, surge: surge.multiplier, promo: promo.ok ? promo.code : null });
+  broadcast(rideId, 'ride:created');
+  dispatch.startDispatch(rideId);
+  return getRide(rideId, customer.id);
 }
 
-/** Rides a driver can pick up: requested, matching their vehicle class, newest first. */
-export function availableRides(driver, limit = 20) {
-  const type = driver.driver?.vehicle_type || 'economy';
-  const rows = db
-    .prepare(`SELECT * FROM rides WHERE status = 'requested' AND vehicle_type = ? ORDER BY id DESC LIMIT ?`)
-    .all(type, limit);
-  const rides = rows.map(serializeRide);
-  if (driver.driver?.lat != null && driver.driver?.lng != null) {
-    for (const r of rides) {
-      r.pickup_distance_km = haversine(driver.driver, { lat: r.pickup_lat, lng: r.pickup_lng });
-    }
-    rides.sort((a, b) => a.pickup_distance_km - b.pickup_distance_km);
-  }
-  return rides;
+/** The rides a driver is currently being offered (dispatch decides, not the driver). */
+export function availableRides(driver) {
+  const offers = dispatch.offersForDriver(driver.id);
+  return offers
+    .map((o) => {
+      const ride = getRide(o.ride_id, driver.id);
+      if (!ride || ride.status !== 'requested') return null;
+      return {
+        ...ride,
+        offer_id: o.id,
+        offer_expires_at: o.expires_at,
+        pickup_distance_km: o.distance_km,
+        wave: o.wave,
+      };
+    })
+    .filter(Boolean);
 }
 
-function haversine(a, b) {
-  const R = 6371;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-
-/** Atomic accept: only succeeds if the ride is still `requested`. */
+/** Atomic accept: only succeeds if the ride is still `requested` and it was offered to them. */
 export function acceptRide(driver, rideId) {
   if (!driver.driver?.is_online) throw Object.assign(new Error('Go online before accepting rides'), { status: 409 });
+  if (driver.driver?.approval_status && driver.driver.approval_status !== 'approved') {
+    throw Object.assign(new Error('Your account is still being reviewed'), { status: 403 });
+  }
   if (stmts.activeForDriver.get(driver.id)) {
     throw Object.assign(new Error('Finish your current ride first'), { status: 409 });
+  }
+  if (!dispatch.hasOffer(rideId, driver.id)) {
+    throw Object.assign(new Error('That request is no longer offered to you'), { status: 409 });
   }
   const res = db
     .prepare(`UPDATE rides SET driver_id = ?, status = 'accepted', accepted_at = datetime('now') WHERE id = ? AND status = 'requested'`)
@@ -204,10 +257,16 @@ export function acceptRide(driver, rideId) {
     if (!existing) throw Object.assign(new Error('Ride not found'), { status: 404 });
     throw Object.assign(new Error('Ride was already taken or cancelled'), { status: 409 });
   }
-  const ride = getRide(rideId);
+  dispatch.markAccepted(driver.id, rideId);
   logEvent(rideId, driver.id, 'accepted');
-  notify('ride:update', ride);
-  return ride;
+  broadcast(rideId);
+  return getRide(rideId, driver.id);
+}
+
+export function declineRide(driver, rideId) {
+  const out = dispatch.declineOffer(driver.id, rideId);
+  logEvent(rideId, driver.id, 'declined');
+  return out;
 }
 
 const TRANSITIONS = {
@@ -216,8 +275,8 @@ const TRANSITIONS = {
   completed: { from: ['in_progress'], col: 'completed_at' },
 };
 
-/** Driver-only forward transitions. */
-export function advanceRide(driver, rideId, nextStatus) {
+/** Driver-only forward transitions. Starting a trip needs the rider's PIN. */
+export function advanceRide(driver, rideId, nextStatus, { pin } = {}) {
   const t = TRANSITIONS[nextStatus];
   if (!t) throw Object.assign(new Error('Invalid transition'), { status: 400 });
   const ride = stmts.ride.get(rideId);
@@ -226,6 +285,12 @@ export function advanceRide(driver, rideId, nextStatus) {
   if (!t.from.includes(ride.status)) {
     throw Object.assign(new Error(`Cannot move from ${ride.status} to ${nextStatus}`), { status: 409 });
   }
+  if (nextStatus === 'in_progress' && ride.pin) {
+    if (String(pin || '').trim() !== ride.pin) {
+      throw Object.assign(new Error('Wrong PIN. Ask the rider for the 4 digits shown on their screen.'), { status: 400 });
+    }
+  }
+
   const placeholders = t.from.map(() => '?').join(',');
   const extra = nextStatus === 'completed' ? ', fare_final = fare_estimate' : '';
   db.prepare(`UPDATE rides SET status = ?, ${t.col} = datetime('now')${extra} WHERE id = ? AND status IN (${placeholders})`).run(
@@ -233,10 +298,21 @@ export function advanceRide(driver, rideId, nextStatus) {
     rideId,
     ...t.from,
   );
-  const updated = getRide(rideId);
+
+  if (nextStatus === 'completed') {
+    const fresh = stmts.ride.get(rideId);
+    try {
+      settleRide(fresh);
+    } catch (e) {
+      // Not enough wallet balance: the trip still ends, the amount is left owing.
+      logEvent(rideId, driver.id, 'settle_failed', { error: e.message });
+      db.prepare(`UPDATE rides SET payment_status = 'failed' WHERE id = ?`).run(rideId);
+    }
+  }
+
   logEvent(rideId, driver.id, nextStatus);
-  notify('ride:update', updated);
-  return updated;
+  broadcast(rideId);
+  return getRide(rideId, driver.id);
 }
 
 export function cancelRide(user, rideId, reason) {
@@ -254,10 +330,28 @@ export function cancelRide(user, rideId, reason) {
     `UPDATE rides SET status = 'cancelled', cancelled_at = datetime('now'), cancel_reason = ?, cancelled_by = ?,
        cancel_fee = ?, driver_penalty = ? WHERE id = ?`,
   ).run(reason || null, user.role, cancelFee, driverPenalty, rideId);
-  const updated = getRide(rideId);
+
+  dispatch.stopDispatch(rideId);
+  settleCancellation(stmts.ride.get(rideId));
+
   logEvent(rideId, user.id, 'cancelled', { by: user.role, reason, cancel_fee: cancelFee, driver_penalty: driverPenalty });
-  notify('ride:update', updated);
-  return updated;
+
+  // A driver dropping out mid-ride puts the rider back in the queue.
+  if (user.role === 'driver' && ['accepted', 'arrived'].includes(ride.status)) {
+    const re = db
+      .prepare(`UPDATE rides SET status = 'requested', driver_id = NULL, accepted_at = NULL, arrived_at = NULL,
+                cancelled_at = NULL, cancel_reason = NULL, cancelled_by = NULL, cancel_fee = 0 WHERE id = ?`)
+      .run(rideId);
+    if (re.changes) {
+      logEvent(rideId, user.id, 'requeued', { after: 'driver_cancel' });
+      broadcast(rideId);
+      dispatch.startDispatch(rideId);
+      return getRide(rideId, user.id);
+    }
+  }
+
+  broadcast(rideId);
+  return getRide(rideId, user.id);
 }
 
 export function rateRide(user, rideId, stars) {
@@ -279,7 +373,7 @@ export function rateRide(user, rideId, stars) {
     throw Object.assign(new Error('Not your ride'), { status: 403 });
   }
   logEvent(rideId, user.id, 'rated', { stars: n, by: user.role });
-  return getRide(rideId);
+  return getRide(rideId, user.id);
 }
 
 export function listRides(user, { limit = 50 } = {}) {
@@ -287,7 +381,12 @@ export function listRides(user, { limit = 50 } = {}) {
   return db
     .prepare(`SELECT * FROM rides WHERE ${col} = ? ORDER BY id DESC LIMIT ?`)
     .all(user.id, limit)
-    .map(serializeRide);
+    .map((r) => serializeRide(r, user.id));
+}
+
+/** Store the driver's live minutes-to-pickup so the rider can see it. */
+export function setEta(rideId, minutes) {
+  stmts.setEta.run(minutes, rideId);
 }
 
 export function isActiveStatus(s) {
