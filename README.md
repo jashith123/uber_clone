@@ -285,6 +285,8 @@ npm test
 
 | Document | What's in it |
 | --- | --- |
+| **[docs/PRD.md](docs/PRD.md)** | Product Requirements: the problem, the users, every requirement with its status, the business rules, success measures and open decisions |
+| **[docs/LLD.md](docs/LLD.md)** | Low Level Design: architecture, all 17 tables, the full API, the dispatch and fare algorithms, sequence diagrams, state machines, security |
 | **[docs/report.html](docs/report.html)** | Status report in plain words: what works, what doesn't, what's free, what costs money, what's needed from you. Open it in a browser. |
 | [docs/BUILD_REPORT.md](docs/BUILD_REPORT.md) | The technical build log: decisions, API reference, database schema, every phase |
 | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) | Step-by-step testing on phones, with a checklist for every feature |
