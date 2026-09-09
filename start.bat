@@ -3,8 +3,12 @@ REM Double-click this file to run SwiftRide.
 title SwiftRide server
 cd /d "%~dp0"
 node scripts\start.mjs
-if errorlevel 1 (
+set RC=%errorlevel%
+if "%RC%"=="3" (
+  REM Already running in the background. Pause so the message can be read.
+  pause
+) else if not "%RC%"=="0" (
   echo.
-  echo Something went wrong. The message above says what.
+  echo SwiftRide could not start. The message above says why.
   pause
 )

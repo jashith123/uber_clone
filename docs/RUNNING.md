@@ -39,6 +39,11 @@ It installs anything missing, builds the web app the first time, and then prints
 
 **Leave that window open.** Closing it stops the server.
 
+> **"SwiftRide is already running"?** That is not an error. If auto-start is on
+> (section 2), the server is already up in the background, so `start.bat` simply
+> shows you the addresses and tells you so. Close the window; the server keeps
+> running. Use `npm run stop` to actually stop it.
+
 > The address it prints is worked out by asking Windows which network card actually reaches the internet, so it ignores VirtualBox and VMware adapters that a phone cannot reach.
 
 ### Step 2 — be the driver on the laptop
@@ -77,6 +82,13 @@ Almost always one of these:
 | No offer appears | Wrong vehicle class | The rider picked Comfort but only a Go driver is online. Pick **Go**. |
 | Phone cannot open the address | Different Wi-Fi | Put both on the same network |
 | Phone cannot open the address | Windows Firewall | Allow Node.js through when Windows asks. Otherwise: Windows Security → Firewall → Allow an app → tick Node.js for Private networks |
+
+### Other messages you might see
+
+| Message | What it means | What to do |
+| --- | --- | --- |
+| `SwiftRide is already running` | Auto-start put it up in the background | Nothing. Close the window, the server stays up. |
+| `Port 4000 is already being used by another program` | Something that is not SwiftRide has the port | Close that program, or run `npm run stop`, or start on another port with `set PORT=4100 && npm start` |
 
 ---
 
