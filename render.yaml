@@ -1,0 +1,39 @@
+# Free hosting on Render. Push this file to GitHub, then in Render choose
+# "New +" -> "Blueprint" and point it at the repository.
+#
+# The free plan sleeps after 15 minutes with no visitors and wakes in about a
+# minute when someone opens it. It also has no permanent disk, so the database
+# starts fresh after a restart. That is survivable here because the server
+# recreates the demo accounts automatically whenever it finds an empty database.
+#
+# To keep your data between restarts, upgrade the service to a paid plan and add
+# a disk mounted at /data, then set DB_PATH=/data/swiftride.db.
+services:
+  - type: web
+    name: swiftride
+    runtime: node
+    plan: free
+    region: singapore          # closest Render region to India
+    branch: master
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm run start:server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: JWT_SECRET
+        generateValue: true    # Render invents a strong secret and keeps it
+      - key: PAYMENT_PROVIDER
+        value: mock            # change to razorpay once you have keys
+      - key: COMMISSION_PERCENT
+        value: 15
+      - key: REQUIRE_DRIVER_APPROVAL
+        value: 0
+      - key: ADMIN_EMAILS
+        value: admin@demo.com
+      # Push notifications: generate a pair locally with `npm run push:keys`
+      # and paste them into the Render dashboard. Leave blank to disable push.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false

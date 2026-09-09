@@ -1,0 +1,46 @@
+# Hosting on Fly.io. Unlike Render's free plan this keeps a real disk, so
+# accounts and rides survive restarts, and it does not sleep.
+#
+#   fly launch --no-deploy      (once, to create the app)
+#   fly volumes create swiftride_data --size 1 --region bom
+#   fly secrets set JWT_SECRET=$(openssl rand -hex 32)
+#   fly deploy
+#
+# Check current pricing before you rely on this: a machine this small has
+# historically fallen inside Fly's free allowance, but their terms change.
+
+app = "swiftride"
+primary_region = "bom"          # Mumbai
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4000"
+  DB_PATH = "/data/swiftride.db"
+  PAYMENT_PROVIDER = "mock"
+  COMMISSION_PERCENT = "15"
+  REQUIRE_DRIVER_APPROVAL = "0"
+  ADMIN_EMAILS = "admin@demo.com"
+
+[[mounts]]
+  source = "swiftride_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "suspend"   # sleep when idle to save money
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

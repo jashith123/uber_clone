@@ -9,8 +9,8 @@
     "seed": "npm --prefix server run seed",
     "test": "npm --prefix server test",
     "build": "npm --prefix client run build",
-    "start": "npm --prefix server start",
-    "serve": "npm run build && npm start",
+    "start": "node scripts/start.mjs",
+    "serve": "node scripts/start.mjs --build",
     "icons": "node client/scripts/make-icons.mjs",
     "tunnel": "npx --yes localtunnel --port 4000",
     "tunnel:dev": "npx --yes localtunnel --port 5173",
@@ -19,7 +19,10 @@
     "docker:down": "docker compose down",
     "android:build": "npm --prefix client run build:android && npm --prefix client exec cap sync android && cd client/android && gradlew assembleRelease",
     "android:open": "npm --prefix client exec cap open android",
-    "push:keys": "npm --prefix server run push:keys"
+    "push:keys": "npm --prefix server run push:keys",
+    "start:server": "npm --prefix server start",
+    "stop": "node scripts/stop.mjs",
+    "autostart": "node scripts/autostart.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

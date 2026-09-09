@@ -15,8 +15,10 @@ A ride-hailing app built from scratch: website, installable phone app, signed An
 - [Screens](#screens)
 - [What it does](#what-it-does)
 - [Run it](#run-it)
+- [Test it: driver on the laptop, rider on the phone](#test-it-driver-on-the-laptop-rider-on-the-phone)
 - [Demo accounts](#demo-accounts)
 - [Get it on a phone](#get-it-on-a-phone)
+- [Put it online for free](#put-it-online-for-free)
 - [Tech stack](#tech-stack)
 - [How the fare works](#how-the-fare-works)
 - [How matching works](#how-matching-works)
@@ -94,26 +96,64 @@ More in [`docs/screenshots/`](docs/screenshots/), including the Android emulator
 
 ## Run it
 
+**Windows: double-click `start.bat`.** That is the whole thing.
+
+From a terminal, anywhere:
+
 ```bash
 git clone https://github.com/jashith123/uber_clone.git
 cd uber_clone
-npm run install:all     # root, server and client dependencies
-npm run seed            # demo accounts (safe to re-run)
-npm run serve           # builds the site, then serves everything on :4000
+npm start
 ```
 
-Open <http://localhost:4000>.
+The first run installs dependencies and builds the web app, which takes a couple of minutes. Every run after that is instant. It finishes by printing exactly what to open:
+
+```
+  SwiftRide is running
+
+  On this laptop
+     http://localhost:4000
+
+  On your phone (same Wi-Fi as this laptop)
+     http://192.168.29.217:4000
+```
+
+Leave that window open. Closing it stops the server.
+
+**Tired of starting it by hand?**
+
+```bash
+npm run autostart on      # starts with Windows from now on, no window
+npm run autostart off     # undo
+```
 
 | Command | What it does |
 | --- | --- |
+| `npm start` | Start everything and print the phone address |
+| `npm run stop` | Stop it |
+| `npm run autostart on` | Start automatically when Windows starts |
+| `npm run serve` | Rebuild the web app first, then start |
 | `npm run dev` | Development mode: site on 5173, API on 4000, hot reload |
-| `npm run serve` | Production build: site, API and sockets all on port 4000 |
 | `npm test` | 27 backend tests, no network needed |
-| `npm run seed` | Create or refresh the demo accounts |
-| `npm run tunnel` | Public HTTPS address for phone testing |
+| `npm run seed` | Recreate the demo accounts |
+| `npm run tunnel` | Temporary public HTTPS address for phone testing |
 | `npm run push:keys` | Generate the free push-notification keys |
 | `npm run android:build` | Build a signed Android APK |
 | `npm run docker:up` | Run the whole thing in Docker |
+
+---
+
+## Test it: driver on the laptop, rider on the phone
+
+The setup most people want, and it needs nothing installed or paid for.
+
+1. **Start the server** with `start.bat`. Note the phone address it prints.
+2. **Laptop is the driver.** Open <http://localhost:4000>, log in as `driver@demo.com` with **"I'm a driver"** selected, tap **Go online**, and tick **Simulate GPS** so the car has a position and drives itself.
+3. **Phone is the rider.** On the same Wi-Fi, open the printed address, log in as `customer@demo.com` with **"I'm a rider"** selected.
+4. **Book a ride from central Delhi** (search "Connaught Place"). The demo drivers are parked there and only get offered rides within 3 km.
+5. The laptop shows an offer card with a countdown. Accept it, then Arrived, then type the PIN shown on the phone, then Complete.
+
+**Nothing happening?** Almost always the driver is offline, the pickup is more than 3 km from the driver, or the rider picked a vehicle class no online driver has. Full troubleshooting in [docs/RUNNING.md](docs/RUNNING.md).
 
 ---
 
@@ -146,6 +186,23 @@ Promo codes to try: `WELCOME50`, `FLAT30`, `WEEKEND20`.
 **Off your Wi-Fi.** Run `npm run tunnel` and paste the printed `https://…` address into the app's server field.
 
 Full instructions, including notifications and the microphone, are in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md).
+
+---
+
+## Put it online for free
+
+The server only runs while your laptop is on. To get a link that works from anywhere, at any time, without your laptop, there are three free routes. Full walkthroughs in [docs/RUNNING.md](docs/RUNNING.md).
+
+| Option | You get | The catch | Setup |
+| --- | --- | --- | --- |
+| **Render free plan** | A permanent `https://…onrender.com` address | Sleeps after 15 min idle, ~1 min to wake; data resets on restart | 10 minutes, web form. `render.yaml` is already in this repo |
+| **Fly.io** | Same, plus a real disk so data survives, and no sleeping | Wants a card; command-line setup | `fly.toml` is already in this repo |
+| **Cloudflare Tunnel** | A public HTTPS address for the server on your laptop | Laptop must stay on; the address changes each run | `npm run tunnel`, or `cloudflared` for a nicer URL |
+
+HTTPS matters for more than tidiness: phone GPS, the microphone for in-app calls, and "Add to Home Screen" only work on a secure address, not over plain `http://` on your Wi-Fi.
+
+Because the server recreates the demo accounts whenever it finds an empty database, even a host with no permanent disk always comes up usable.
+
 
 ---
 
@@ -285,6 +342,7 @@ npm test
 
 | Document | What's in it |
 | --- | --- |
+| **[docs/RUNNING.md](docs/RUNNING.md)** | How to run it, how to test with two devices, how to make it start by itself, and how to host it free without your laptop |
 | **[docs/PRD.md](docs/PRD.md)** | Product Requirements: the problem, the users, every requirement with its status, the business rules, success measures and open decisions |
 | **[docs/LLD.md](docs/LLD.md)** | Low Level Design: architecture, all 17 tables, the full API, the dispatch and fare algorithms, sequence diagrams, state machines, security |
 | **[docs/report.html](docs/report.html)** | Status report in plain words: what works, what doesn't, what's free, what costs money, what's needed from you. Open it in a browser. |
