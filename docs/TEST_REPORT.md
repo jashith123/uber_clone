@@ -170,7 +170,7 @@ Screenshots: `test-2026-10-21-driver-free-rides.png`, `test-2026-10-21-welcome-o
 
 ## 9. Fixed trip PIN
 
-Each rider now has one 4-digit trip PIN, made once for the account and used on every ride, shown on the Trips page ("Your ride PIN · the same on every ride") and on the ride screen. The driver still has to type it to start the trip. Checked: two calls to the profile return the same PIN; a new ride for Rahul carries it; . 46 tests pass.
+Each rider now has one 4-digit trip PIN, made once for the account and used on every ride, shown on the Trips page ("Your ride PIN · the same on every ride") and on the ride screen. The driver still has to type it to start the trip. Checked: two calls to the profile return the same PIN; a new ride for Rahul carries it; screenshot `test-2026-10-21-ride-pin.png`. 46 tests pass.
 
 ## 10. Known limits
 
