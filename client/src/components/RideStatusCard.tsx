@@ -10,13 +10,13 @@ import { haversineKm } from '../lib/geo';
 /** How the fare was actually settled, for the receipt. */
 function paidBy(ride: Ride) {
   if (ride.payment_status === 'failed') return `${ride.payment_method} (unpaid)`;
-  switch (ride.collected_via) {
-    case 'company_qr': return 'company QR (UPI)';
-    case 'driver': return "cash or the driver's QR";
-    case 'wallet': return 'wallet';
-    case 'card': return 'card';
-    default: return ride.payment_method;
-  }
+  const rest = Math.round(((ride.total_due ?? ride.fare_final ?? ride.fare_estimate) - (ride.wallet_paid || 0)) * 100) / 100;
+  const walletPart = ride.wallet_paid > 0 ? `wallet ${money(ride.wallet_paid, ride.currency)}` : '';
+  const restLabel =
+    ride.collected_via === 'company_qr' ? 'company QR (UPI)' : ride.collected_via === 'driver' ? "cash or the driver's QR" : ride.collected_via === 'card' ? 'card' : '';
+  if (ride.collected_via === 'wallet' || (walletPart && rest <= 0)) return 'wallet';
+  if (walletPart && restLabel) return `${walletPart} + ${restLabel} ${money(rest, ride.currency)}`;
+  return restLabel || ride.payment_method;
 }
 
 /** Keep in step with ARRIVAL_RADIUS_KM on the server. */
@@ -92,7 +92,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
           busy={busy}
           feeNote={
             perspective === 'customer' && ride.cancel_policy?.customer_fee > 0
-              ? `Late cancellation: ${signed(-ride.cancel_policy.customer_fee, ride.currency)} will be charged because the driver already ${ride.status === 'arrived' ? 'arrived' : 'accepted more than 2 minutes ago'}.`
+              ? `Late cancellation: ${signed(-ride.cancel_policy.customer_fee, ride.currency)} will be charged because the driver already ${ride.status === 'arrived' ? 'arrived' : 'accepted more than 2 minutes ago'}. It comes out of your wallet; if the wallet is short, the rest is added to your next ride.`
               : perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0
                 ? `Cancelling now deducts ${signed(-ride.cancel_policy.driver_penalty, ride.currency)} from your earnings, and the rider goes back into the queue.`
                 : null
@@ -252,9 +252,9 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
         )}
         {perspective === 'driver' && ride.status === 'in_progress' && ride.payment_status !== 'collecting' && (
           <button className="btn btn-primary" disabled={busy} onClick={() => onAdvance?.('complete')}>
-            {ride.payment_method === 'cash'
-              ? `Reached the destination · collect ${money(ride.fare_estimate, ride.currency)}`
-              : `Complete trip · ${money(ride.fare_estimate, ride.currency)} paid by ${ride.payment_method}`}
+            {ride.payment_method === 'card'
+              ? `Complete trip · ${money(ride.total_due ?? ride.fare_estimate, ride.currency)} paid by card`
+              : `Reached the destination · ${money(ride.total_due ?? ride.fare_estimate, ride.currency)} due`}
           </button>
         )}
         {canCancel && onCancel && perspective === 'customer' && ride.cancel_policy?.customer_fee > 0 && (
@@ -296,9 +296,10 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
           <Row label="Booking fee" value={money(ride.fare_breakdown.booking_fee, ride.currency)} />
           {ride.fare_breakdown.min_fare_applied && <Row label="Minimum fare applied" value={money(ride.fare_breakdown.min_fare, ride.currency)} />}
           {ride.discount > 0 && <Row label={`Promo ${ride.promo_code || ''}`} value={signed(-ride.discount, ride.currency)} signedValue />}
+          {ride.due_carried > 0 && <Row label="Cancellation fee from an earlier ride" value={money(ride.due_carried, ride.currency)} />}
           <Row
-            label={perspective === 'customer' ? 'You paid' : 'Fare collected'}
-            value={signed((perspective === 'customer' ? -1 : 1) * (ride.fare_final ?? ride.fare_estimate), ride.currency)}
+            label={perspective === 'customer' ? 'You paid' : 'Collected in total'}
+            value={signed((perspective === 'customer' ? -1 : 1) * (ride.total_due ?? ride.fare_final ?? ride.fare_estimate), ride.currency)}
             bold
             signedValue
           />

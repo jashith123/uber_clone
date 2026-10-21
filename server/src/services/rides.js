@@ -10,7 +10,7 @@ import { computeFare } from './fare.js';
 import { surgeAt } from './surge.js';
 import { quotePromo, redeemPromo } from './promos.js';
 import { makePin, makeShareToken } from './safety.js';
-import { settleRide, settleCancellation, getWallet, commissionFor } from './payments.js';
+import { settleRide, settleCancellation, getWallet, commissionFor, round2 } from './payments.js';
 import * as dispatch from './dispatch.js';
 
 export const RIDE_STATES = ['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'];
@@ -111,6 +111,7 @@ export function serializeRide(row, viewerId = null) {
     customer: customer ? { id: customer.id, name: customer.name, phone: customer.phone, ...ratingFor(customer.id, 'customer') } : null,
     driver,
     cancel_policy: cancelQuote(row, stmts.pricing.get(row.vehicle_type)),
+    total_due: round2((row.fare_final ?? row.fare_estimate) + (row.due_carried || 0)),
     // For the "pay ₹X" screen at the end of a cash ride.
     company: { name: config.company.name, upi_id: config.company.upiId, commission_percent: config.payments.commissionPercent },
   };
@@ -139,6 +140,13 @@ function broadcast(rideId, event = 'ride:update') {
     forDriver: row.driver_id ? serializeRide(row, row.driver_id) : null,
   });
   return row;
+}
+
+/** Could the driver end up holding cash on this ride? Card rides never; wallet rides only if the wallet is short. */
+export function mayCollectCash(ride) {
+  if (ride.payment_method === 'card') return false;
+  if (ride.payment_method !== 'wallet') return true;
+  return getWallet(ride.customer_id).balance < round2(ride.fare_estimate + (ride.due_carried || 0));
 }
 
 /** Refuse a wallet booking the wallet cannot pay for. */
@@ -200,10 +208,6 @@ export async function createRide(customer, body) {
     promoCode: promo.ok ? promo.code : null,
   });
 
-  // A wallet ride is only accepted when the wallet can cover the estimate, so a
-  // driver never finishes a trip to find there was nothing to collect.
-  if (payment_method === 'wallet') assertWalletCovers(customer.id, total);
-
   const dropoff = waypoints[waypoints.length - 1];
   const result = stmts.insert.run(
     customer.id,
@@ -230,6 +234,9 @@ export async function createRide(customer, body) {
     promo.discount || 0,
   );
   const rideId = Number(result.lastInsertRowid);
+  // A cancellation fee the rider still owes rides along with this trip.
+  const owed = round2(db.prepare('SELECT outstanding_fee FROM users WHERE id = ?').get(customer.id)?.outstanding_fee || 0);
+  if (owed > 0) db.prepare('UPDATE rides SET due_carried = ? WHERE id = ?').run(owed, rideId);
   if (promo.ok) redeemPromo(customer, promo.code, rideId, promo.discount);
 
   logEvent(rideId, customer.id, 'requested', { fare: total, distance_km: route.distance_km, surge: surge.multiplier, promo: promo.ok ? promo.code : null });
@@ -275,9 +282,10 @@ export function acceptRide(driver, rideId) {
       { status: 409 },
     );
   }
-  // A cash ride is paid to the driver in person, so the commission must already
-  // be sitting in his wallet; otherwise nothing stops him keeping all of it.
-  if (target && target.payment_method === 'cash') {
+  // When the driver may end up collecting cash (the rider is not paying by
+  // card, and their wallet does not cover the whole amount), the commission
+  // must already be in his wallet; otherwise nothing stops him keeping it all.
+  if (target && mayCollectCash(target)) {
     const need = commissionFor(target.fare_estimate);
     const have = getWallet(driver.id).balance;
     if (have < need) {
@@ -371,20 +379,27 @@ export function advanceRide(driver, rideId, nextStatus, opts = {}) {
   // Arriving, or starting straight from "accepted", means the car is at the pickup.
   if (nextStatus === 'arrived' || (nextStatus === 'in_progress' && ride.status === 'accepted')) assertAtPickup(driver.id, ride);
 
-  // Reaching the destination on a cash ride is not the end: the driver first
-  // collects the fare (company QR or in person) and confirms which, so both
-  // apps show "pay / collect ₹X" and the books come out right.
-  if (nextStatus === 'completed' && ride.payment_method === 'cash') {
+  // Reaching the destination is not the end. The rider's wallet pays what it
+  // can (when they chose it); whatever is left is collected on the company QR
+  // or by the driver, who must confirm which before the trip counts as over.
+  if (nextStatus === 'completed' && ride.payment_method !== 'card') {
     const via = opts.collected_via;
-    if (!via) {
-      if (ride.payment_status !== 'collecting') {
-        db.prepare(`UPDATE rides SET payment_status = 'collecting', fare_final = fare_estimate, dropped_at = datetime('now') WHERE id = ?`).run(rideId);
-        logEvent(rideId, driver.id, 'dropoff', { collect: ride.fare_estimate });
+    if (ride.payment_status !== 'collecting') {
+      const fare = round2(ride.fare_estimate);
+      const due = round2(ride.due_carried || 0);
+      const total = round2(fare + due);
+      const balance = getWallet(ride.customer_id).balance;
+      const walletPaid = ride.payment_method === 'wallet' ? round2(Math.min(Math.max(0, balance), total)) : 0;
+      const remainder = round2(total - walletPaid);
+      db.prepare(`UPDATE rides SET fare_final = fare_estimate, wallet_paid = ?, dropped_at = datetime('now') WHERE id = ?`).run(walletPaid, rideId);
+      if (remainder > 0 && !via) {
+        db.prepare(`UPDATE rides SET payment_status = 'collecting' WHERE id = ?`).run(rideId);
+        logEvent(rideId, driver.id, 'dropoff', { total, wallet_paid: walletPaid, collect: remainder });
         broadcast(rideId);
+        return getRide(rideId, driver.id);
       }
-      return getRide(rideId, driver.id);
-    }
-    if (!['company_qr', 'driver'].includes(via)) {
+      // Nothing left to collect: the wallet covered everything, so finish now.
+    } else if (!['company_qr', 'driver'].includes(via)) {
       throw Object.assign(new Error('Say where the fare was collected: company_qr or driver'), { status: 400 });
     }
   }
@@ -406,7 +421,7 @@ export function advanceRide(driver, rideId, nextStatus, opts = {}) {
       // rider pays the driver in cash instead, exactly like a cash booking, so
       // the driver is never left unpaid.
       logEvent(rideId, driver.id, 'payment_fallback_cash', { from: fresh.payment_method, error: e.message });
-      db.prepare(`UPDATE rides SET payment_method = 'cash' WHERE id = ?`).run(rideId);
+      db.prepare(`UPDATE rides SET payment_method = 'cash', wallet_paid = 0 WHERE id = ?`).run(rideId);
       try {
         settleRide(stmts.ride.get(rideId));
       } catch (e2) {

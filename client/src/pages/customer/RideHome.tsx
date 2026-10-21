@@ -28,6 +28,7 @@ export default function RideHome() {
   const [promoCheck, setPromoCheck] = useState<PromoCheck | null>(null);
   const [offers, setOffers] = useState<Promo[]>([]);
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [dueCarried, setDueCarried] = useState(0);
   const [routing, setRouting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,6 +73,10 @@ export default function RideHome() {
     const onUpdate = (r: Ride) => {
       setRide((cur) => (cur && cur.id === r.id ? r : cur));
       if (r.status !== 'requested') setDispatchNote(null);
+      // The wallet moved: fare taken at the end, or a cancellation fee.
+      if (r.status === 'completed' || r.status === 'cancelled') {
+        api<{ wallet: Wallet }>('/payments/wallet').then((w) => setWallet(w.wallet)).catch(() => {});
+      }
     };
     const onLoc = (l: DriverLocation) => setDriverLoc(l);
     const onSearching = (d: DispatchSearching) =>
@@ -99,8 +104,8 @@ export default function RideHome() {
     const [lat, lng] = pickup ? [pickup.lat, pickup.lng] : center;
     let stop = false;
     const load = () =>
-      api<{ drivers: { user_id: number; lat: number; lng: number; heading: number | null }[] }>(`/drivers/nearby?lat=${lat}&lng=${lng}`)
-        .then((r) => !stop && setNearby(r.drivers.map((d) => ({ id: d.user_id, lat: d.lat, lng: d.lng, heading: d.heading }))))
+      api<{ drivers: { user_id: number; lat: number; lng: number; heading: number | null; vehicle_type?: string }[] }>(`/drivers/nearby?lat=${lat}&lng=${lng}`)
+        .then((r) => !stop && setNearby(r.drivers.map((d) => ({ id: d.user_id, lat: d.lat, lng: d.lng, heading: d.heading, vehicle_type: d.vehicle_type }))))
         .catch(() => {});
     load();
     const t = window.setInterval(load, 8000);
@@ -119,7 +124,7 @@ export default function RideHome() {
     const id = ++routeReq.current;
     setRouting(true);
     setError(null);
-    api<{ routes: RouteOption[]; promo: PromoCheck | null }>('/geo/routes', {
+    api<{ routes: RouteOption[]; promo: PromoCheck | null; due_carried?: number }>('/geo/routes', {
       method: 'POST',
       body: { waypoints: [pickup, ...stops, dropoff], promo_code: promoApplied },
     })
@@ -127,6 +132,7 @@ export default function RideHome() {
         if (id !== routeReq.current) return;
         setRoutes(r.routes);
         setRouteIndex(0);
+        setDueCarried(r.due_carried || 0);
         // A rejected code is dropped so the fare returns to full price, but the
         // reason must stay on screen: the follow-up fetch (now with no code)
         // comes back with promo = null and used to wipe the message.
@@ -210,10 +216,6 @@ export default function RideHome() {
 
   async function book() {
     if (!selected || !quote) return;
-    if (payment === 'wallet' && wallet && wallet.balance < quote.fare) {
-      setError(`Your wallet has ${money(wallet.balance)} but the fare is ${money(quote.fare)}. Add money or pay by cash.`);
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
@@ -268,6 +270,7 @@ export default function RideHome() {
             lng: driverLoc?.lng ?? ride.driver.lng!,
             heading: driverLoc?.heading ?? ride.driver.heading,
             active: true,
+            vehicle_type: ride.driver.vehicle_type,
           },
         ]
       : []
@@ -501,22 +504,34 @@ export default function RideHome() {
                 <div className="payment-row">
                   <span>Pay with</span>
                   <div className="segmented small">
-                    {(['cash', 'wallet', 'card'] as const).map((p) => (
+                    {(['wallet', 'cash', 'card'] as const).map((p) => (
                       <button key={p} type="button" className={payment === p ? 'on' : ''} onClick={() => setPayment(p)}>
-                        {p}
+                        {p === 'wallet' ? 'Wallet' : p === 'cash' ? 'Cash / UPI' : 'Card'}
                       </button>
                     ))}
                   </div>
                 </div>
-                {payment === 'wallet' && (
-                  <div className={`call-note ${wallet && quote && wallet.balance < quote.fare ? 'error' : ''}`}>
-                    Wallet balance {money(wallet?.balance ?? 0)}
-                    {wallet && quote && wallet.balance < quote.fare ? ' — not enough for this ride.' : ''}
+                {payment === 'wallet' && quote && (
+                  <div className="call-note">
+                    {(() => {
+                      const total = quote.fare + dueCarried;
+                      const covers = Math.min(wallet?.balance ?? 0, total);
+                      return covers >= total
+                        ? `Your wallet (${money(wallet?.balance ?? 0)}) pays the whole ${money(total)} automatically when the trip ends.`
+                        : covers > 0
+                          ? `Your wallet (${money(wallet?.balance ?? 0)}) pays ${money(covers)} automatically; you pay the remaining ${money(total - covers)} at the end by cash or UPI.`
+                          : 'Your wallet is empty, so you pay the whole fare at the end by cash or UPI. Add money in Wallet to pay automatically.';
+                    })()}
+                  </div>
+                )}
+                {dueCarried > 0 && (
+                  <div className="fee-warning">
+                    Includes {money(dueCarried)} cancellation fee still owed from your last ride; it is collected with this trip.
                   </div>
                 )}
 
                 <button className="btn btn-primary btn-block btn-lg" disabled={busy || !quote} onClick={book}>
-                  {busy ? 'Requesting…' : `Confirm ${quote?.label} · ${quote ? money(quote.fare, quote.currency) : ''}`}
+                  {busy ? 'Requesting…' : `Confirm ${quote?.label} · ${quote ? money(quote.fare + dueCarried, quote.currency) : ''}`}
                 </button>
               </>
             )}

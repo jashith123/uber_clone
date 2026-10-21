@@ -182,7 +182,7 @@ export default function DriverHome() {
     }
   }
 
-  const mapDrivers = useMemo<MapDriver[]>(() => [{ id: user?.id ?? 0, ...pos, active: true }], [pos, user?.id]);
+  const mapDrivers = useMemo<MapDriver[]>(() => [{ id: user?.id ?? 0, ...pos, active: true, vehicle_type: user?.driver?.vehicle_type }], [pos, user?.id, user?.driver?.vehicle_type]);
   const shown = active ?? (offers[0] || null);
   const fitKey = shown ? `ride-${shown.id}-${shown.status}` : undefined;
 

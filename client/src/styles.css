@@ -851,8 +851,8 @@ h4 {
   border: 0;
 }
 .car-marker {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -861,9 +861,9 @@ h4 {
 .car-marker.car-active::before {
   content: '';
   position: absolute;
-  inset: 2px;
+  inset: 0;
   border-radius: 50%;
-  background: rgba(17, 17, 17, 0.14);
+  background: rgba(39, 110, 241, 0.22);
   animation: car-pulse 1.8s ease-out infinite;
 }
 @keyframes car-pulse {
@@ -871,9 +871,9 @@ h4 {
   100% { transform: scale(1.6); opacity: 0; }
 }
 .car-body {
-  width: 22px;
-  height: 36px;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+  width: 30px;
+  height: 60px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.3));
   will-change: transform;
 }
 .car-body svg {
@@ -2270,4 +2270,11 @@ table.data tr:hover td {
   body.typing .tabbar {
     display: none;
   }
+}
+
+.pay-breakdown {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--muted);
 }

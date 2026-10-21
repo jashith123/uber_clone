@@ -31,6 +31,8 @@ export interface User {
   is_admin?: number;
   is_owner?: number;
   is_blocked?: number;
+  /** Riders: a cancellation fee not yet collected; added to the next ride. */
+  outstanding_fee?: number;
   /** Riders: average of the ratings drivers gave them; null until the first one. */
   rating?: number | null;
   rating_count?: number;
@@ -150,6 +152,12 @@ export interface Ride {
   commission: number;
   driver_share: number;
   dropped_at: string | null;
+  /** Cancellation fee from an earlier ride, collected with this one. */
+  due_carried: number;
+  /** Paid from the rider's wallet at the destination. */
+  wallet_paid: number;
+  /** fare + due_carried */
+  total_due: number;
   company?: { name: string; upi_id: string; commission_percent: number };
   dispatch_state: 'idle' | 'searching' | 'no_drivers';
   customer_rating: number | null;

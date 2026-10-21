@@ -141,7 +141,9 @@ export default function WalletPage() {
         {cfg && (
           <span className="muted">
             {cfg.live ? 'Card and UPI payments are live.' : 'Test mode: top-ups are free and no real money moves.'}
-            {isDriver ? ` Platform commission ${cfg.commission_percent}%.` : ''}
+            {isDriver
+              ? ` Platform commission ${cfg.commission_percent}%.`
+              : ' Your wallet pays your rides automatically when they end, covers as much of a fare as it holds, and cannot be withdrawn.'}
           </span>
         )}
       </div>

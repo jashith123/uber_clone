@@ -116,11 +116,43 @@ Screenshots: `test-2026-10-21-earnings.png`, `test-2026-10-21-earnings-withdrawn
 
 ## 6. Automated tests
 
-`npm test`: 38 tests, all passing. They cover fares, wallets, promos, dispatch, the ride lifecycle, PIN, cancellation fees, the arrival radius, vehicle-class matching, true-average ratings, call entries in chat, the two-step cash ending with company-QR and driver-collected settlement, the commission precondition, and owner payouts.
+`npm test`: 41 tests, all passing. They cover fares, wallets, promos, dispatch, the ride lifecycle, PIN, cancellation fees, the arrival radius, vehicle-class matching, true-average ratings, call entries in chat, the two-step cash ending with company-QR and driver-collected settlement, the commission precondition, owner payouts, wallet-first payment with a remainder, fines carried to the next ride, and the demo reset.
 
 ---
 
-## 7. Known limits
+## 7. Rider wallet, fines, and the clean books
+
+All old rides and transactions were wiped (owner's **Reset all rides and transactions** button, also `node scripts/reset-demo.mjs`), the two throwaway signup accounts from an API test were removed, and every entry below was then made through the apps.
+
+**The rules**
+
+- The rider's wallet is use-only: it pays rides automatically when they end, covers as much of the amount as it holds, never goes negative, and cannot be withdrawn.
+- "Pay with Wallet" at booking shows what the wallet will cover and what is left for cash or UPI at the end.
+- A late-cancellation fee comes out of the wallet as far as it goes; the rest is carried to the rider's next ride, shown at booking ("Includes ₹30 cancellation fee…") and on the pay screen. The driver who was cancelled on gets the whole fee at once.
+- A driver only receives a ride on which cash could change hands if his wallet already covers the commission; a rider whose wallet covers the whole amount can be served by any driver.
+
+**What was done, in order**
+
+| # | Action (through the app) | Books afterwards |
+| --- | --- | --- |
+| 1 | Rider adds ₹50 in Wallet; driver (Dev Car) adds ₹100 | Company holds ₹150 (money held for users) |
+| 2 | Ride 1, Sector 17 → Elante, ₹130.52, "Pay with Wallet": wallet pays ₹50 automatically, rider's screen shows **Pay ₹80.52**, driver confirms "Paid on the company QR" | Online fares +₹130.52 (₹50 wallet + ₹80.52 QR); driver credited ₹117.47; profit ₹13.05 |
+| 3 | Ride 2: driver arrives, rider cancels late (₹30 fee) with the wallet empty | Driver credited ₹30; rider now owes ₹30, carried forward |
+| 4 | Ride 3, "Pay with Wallet" on an empty wallet, driver collects ₹130.61 in person | ₹13.06 commission taken from the driver's wallet; profit ₹26.11 |
+| 5 | Ride 4, booking shows "Includes ₹30 cancellation fee", total ₹146.58; driver collects it in person | ₹41.66 taken from the driver's wallet (₹11.66 commission + ₹30 carried fee); rider owes ₹0; profit ₹37.77 |
+| 6 | Owner pays Dev Car his ₹192.75 | Owed to drivers ₹0; company holds ₹142.49 |
+
+Owner's Company tab after step 5 (`test-2026-10-21-owner-books-real.png`) and after the payout (`test-2026-10-21-owner-books-after-payout.png`). Other screenshots: `test-2026-10-21-wallet-booking.png`, `test-2026-10-21-wallet-pay-remainder.png`, `test-2026-10-21-fee-carried-booking.png`, `test-2026-10-21-fee-carried-pay.png`, `test-2026-10-21-collect-with-fee.png`.
+
+![Owner's books with only real activity](screenshots/test-2026-10-21-owner-books-real.png)
+
+A bug found on the way: the carried fee showed at booking but was not collected on ride 3, because ride creation read the fee from a query that did not include it. Fixed; ride 4 collected it.
+
+**Vehicle drawings.** The map markers were redrawn as shaded top-down vehicles in the style of ride-hailing apps, one per class: white Go sedan, blue Comfort sedan, charcoal XL SUV, red Moto scooter, yellow-green Auto (`test-2026-10-21-vehicle-icons.png`, `test-2026-10-21-cars-new.png`, on the phone `test-2026-10-21-android-cars-new.png`).
+
+![Vehicle drawings](screenshots/test-2026-10-21-vehicle-icons.png)
+
+## 8. Known limits
 
 - The emulator's own GPS can be slow; on a real phone the location prompt and fix are normal Android behaviour.
 - In-app calls between two different networks (mobile data on both sides) use the free Open Relay TURN server by default; for production set your own `TURN_URLS`.

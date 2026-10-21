@@ -7,6 +7,7 @@ import { listSos, resolveSos } from '../services/safety.js';
 import { listZones, upsertZone, deleteZone } from '../services/surge.js';
 import { offersForRide } from '../services/dispatch.js';
 import { credit, companyBalance, companyLedger, companyTotal, payDriver } from '../services/payments.js';
+import { resetDemoData } from '../services/reset.js';
 
 export const adminRouter = Router();
 
@@ -225,6 +226,8 @@ adminRouter.get('/company', requireOwner, (_req, res) => {
     owed_to_drivers: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance > 0`).s),
     owed_by_drivers: r2(-one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance < 0`).s),
     owed_to_riders: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'customer' AND w.balance > 0`).s),
+    // Cancellation fees riders still owe; collected with their next ride.
+    owed_by_riders: r2(one(`SELECT COALESCE(SUM(outstanding_fee),0) AS s FROM users WHERE role = 'customer'`).s),
     payout_requests: db
       .prepare(
         `SELECT u.id, u.name, p.payout_requested AS amount, p.payout_requested_at AS at, COALESCE(w.balance,0) AS balance
@@ -247,6 +250,15 @@ adminRouter.get('/company', requireOwner, (_req, res) => {
       )
       .all(),
   });
+});
+
+/** Owner only: wipe rides and transactions so the books show only real activity from now on. */
+adminRouter.post('/reset-demo', requireOwner, (_req, res, next) => {
+  try {
+    res.json(resetDemoData());
+  } catch (e) {
+    next(e);
+  }
 });
 
 adminRouter.post('/drivers/:id/payout', requireOwner, (req, res, next) => {

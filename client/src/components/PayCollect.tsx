@@ -9,7 +9,7 @@ interface Props {
   ride: Ride;
   perspective: 'customer' | 'driver';
   busy?: boolean;
-  /** Driver only: the fare has been collected this way; finish the trip. */
+  /** Driver only: the remainder has been collected this way; finish the trip. */
   onCollected?: (via: Via) => void;
 }
 
@@ -28,31 +28,47 @@ function Qr({ value }: { value: string }) {
   return src ? <img className="qr" src={src} alt="UPI QR code" width={220} height={220} /> : <div className="qr qr-empty" />;
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * The end of a cash ride. The rider sees "pay ₹X" with the company's QR (or
- * the option to pay the driver directly); the driver sees "collect ₹X" and
- * must say how it was paid before the trip counts as over.
+ * The end of a ride. The rider's wallet has already paid what it could; what
+ * is left is shown as "pay ₹X" with the company's QR (or the option to pay the
+ * driver). The driver sees "collect ₹X" and must say how it was paid before
+ * the trip counts as over.
  */
 export default function PayCollect({ ride, perspective, busy, onCollected }: Props) {
   const fare = ride.fare_final ?? ride.fare_estimate;
+  const due = ride.due_carried || 0;
+  const total = ride.total_due ?? r2(fare + due);
+  const walletPaid = ride.wallet_paid || 0;
+  const remainder = r2(total - walletPaid);
   const company = ride.company;
   const pct = company?.commission_percent ?? 10;
-  const commission = Math.round(fare * pct) / 100;
-  const share = Math.round((fare - commission) * 100) / 100;
+  const commission = r2((fare * pct) / 100);
+  const share = r2(fare - commission);
   const [confirm, setConfirm] = useState<Via | null>(null);
+
+  const breakdown = (
+    <div className="pay-breakdown">
+      <span>Fare {money(fare, ride.currency)}</span>
+      {due > 0 && <span>+ {money(due, ride.currency)} cancellation fee from an earlier ride</span>}
+      {walletPaid > 0 && <span>− {money(walletPaid, ride.currency)} paid from the wallet</span>}
+    </div>
+  );
 
   if (perspective === 'customer') {
     return (
       <div className="pay-box">
-        <h4>Pay {money(fare, ride.currency)} to finish your trip</h4>
+        <h4>Pay {money(remainder, ride.currency)} to finish your trip</h4>
+        {breakdown}
         <p className="muted">
           Scan with any UPI app to pay {company?.name ?? 'the company'} directly. Your driver confirms once it arrives and the trip
           closes.
         </p>
-        {company && <Qr value={upiLink(company.upi_id, company.name, fare, `${company.name} ride ${ride.id}`)} />}
+        {company && <Qr value={upiLink(company.upi_id, company.name, remainder, `${company.name} ride ${ride.id}`)} />}
         {company && (
           <small className="muted">
-            UPI ID <b>{company.upi_id}</b> · amount {money(fare, ride.currency)}
+            UPI ID <b>{company.upi_id}</b> · amount {money(remainder, ride.currency)}
           </small>
         )}
         <div className="pay-alt">
@@ -62,12 +78,16 @@ export default function PayCollect({ ride, perspective, busy, onCollected }: Pro
     );
   }
 
+  // What the driver keeps if he collects the remainder himself, versus his share.
+  const keepsVsShare = r2(remainder - share);
+
   return (
     <div className="pay-box">
       <h4>
-        Collect {money(fare, ride.currency)} from {ride.customer?.name ?? 'the rider'}
+        Collect {money(remainder, ride.currency)} from {ride.customer?.name ?? 'the rider'}
       </h4>
-      <p className="muted">The rider is looking at the company QR. Say how the fare was paid; the trip ends when you confirm.</p>
+      {breakdown}
+      <p className="muted">The rider is looking at the company QR. Say how it was paid; the trip ends when you confirm.</p>
       {!confirm ? (
         <div className="row-actions">
           <button className="btn btn-primary" disabled={busy} onClick={() => setConfirm('company_qr')}>
@@ -81,13 +101,15 @@ export default function PayCollect({ ride, perspective, busy, onCollected }: Pro
         <div className="confirm-box">
           <strong>
             {confirm === 'company_qr'
-              ? `${money(fare, ride.currency)} arrived on the company QR?`
-              : `You received ${money(fare, ride.currency)} in cash or on your own QR?`}
+              ? `${money(remainder, ride.currency)} arrived on the company QR?`
+              : `You received ${money(remainder, ride.currency)} in cash or on your own QR?`}
           </strong>
           <small className="muted">
             {confirm === 'company_qr'
-              ? `Your share, ${money(share, ride.currency)}, is credited to your wallet now and paid out by the company.`
-              : `You keep the fare. The ${pct}% commission, ${money(commission, ride.currency)}, comes out of your wallet.`}
+              ? `Your share of this fare, ${money(share, ride.currency)}, is credited to your wallet now and paid out by the company.`
+              : keepsVsShare > 0
+                ? `You keep the ${money(remainder, ride.currency)}. Your share is ${money(share, ride.currency)}, so ${money(keepsVsShare, ride.currency)} (the ${pct}% commission${due ? ' and the carried fee' : ''}) comes out of your wallet.`
+                : `You keep the ${money(remainder, ride.currency)}; the rest of your ${money(share, ride.currency)} share, ${money(-keepsVsShare, ride.currency)}, is credited to your wallet.`}
           </small>
           <div className="row-actions">
             <button className="btn btn-primary" disabled={busy} onClick={() => onCollected?.(confirm)}>

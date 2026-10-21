@@ -1,6 +1,6 @@
 # SwiftRide — Build Report
 
-Date: 5 September 2026 (updated 21 October 2026 with phases 7 to 9: end-to-end check, deploy readiness, calls, money, owner and settlement, final APK)
+Date: 5 September 2026 (updated 21 October 2026 with phases 7 to 10: end-to-end check, deploy readiness, owner and settlement, rider wallet, final APK)
 Project: `C:\Projects\Ideas\Uber`
 Goal: an Uber-style ride-hailing app built from scratch (frontend, backend, database), with separate customer and driver accounts, working ride requests, and the key differentiator: **the customer chooses the route and the fare is calculated from the kilometres of that route.**
 
@@ -508,3 +508,32 @@ Everything asked for on 21 October, built and tested. The screenshot report is `
 ### Settings added
 
 `COMPANY_NAME`, `COMPANY_UPI_ID`, `OWNER_EMAILS`, `ARRIVAL_RADIUS_KM`, `LOCATION_MAX_AGE_MIN`, `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL`, `STUN_URLS`. `COMMISSION_PERCENT` defaults to 10.
+
+---
+
+## 21. Phase 10 (21 October 2026): rider wallet, fines carried forward, clean books, vehicle drawings
+
+### Rider wallet
+
+- The wallet is use-only: riders add money (mock gateway now, Razorpay when keys are set) and cannot withdraw it.
+- "Pay with Wallet" makes the wallet pay automatically when the ride ends. It covers as much of the amount as it holds (₹10 of a ₹12.90 fare, say); the remainder goes through the existing end-of-ride step: the rider sees "Pay ₹X" with the company QR or pays the driver, the driver confirms. A wallet that covers everything closes the ride with nothing to collect. The booking screen shows exactly how much the wallet will cover.
+- A rider's wallet never goes negative. A late-cancellation fee is taken from the wallet as far as it goes; the rest is stored as `outstanding_fee` on the rider and folded into the next ride (`due_carried` on the ride), shown at booking and on the pay screen. The driver who was cancelled on is paid the whole fee at once; the company fronts the unpaid part and recovers it with the next fare.
+- The driver's end of the settlement is unchanged in spirit: he ends up with 90% of the fare whatever route the money took. Cash he collected counts against his share; the difference is credited to or taken from his wallet.
+- Dispatch and accept now ask "could cash change hands?" (not card, and the rider's wallet does not cover the whole amount) before requiring the driver's commission float; a fully wallet-covered ride can go to a driver with an empty wallet.
+
+### Clean books
+
+- `POST /api/admin/reset-demo` (owner) and `node scripts/reset-demo.mjs` wipe rides, offers, messages, events, promo redemptions, SOS alerts, payments, wallet transactions and the company ledger, and zero every wallet and outstanding fee. Accounts, vehicles, prices and promo codes stay. The Company tab has the button.
+- The books were reset and the whole sequence in `docs/TEST_REPORT.md` §7 was done through the apps, so the owner now sees only real activity: two top-ups, four rides, one late cancellation, one payout, profit ₹37.77.
+
+### Vehicle drawings
+
+New `CarMarker` illustrations drawn in the style of ride-hailing apps: a gradient-shaded body, lighter roof, dark glass with a highlight, mirrors, head and tail lights and a soft shadow, with a different drawing and colour per class (white Go sedan, blue Comfort sedan, charcoal XL SUV, red Moto scooter, yellow-green Auto three-wheeler). The rider's own car gets a blue pulse in the app's accent colour. Markers carry the driver's class, so the nearby-cars layer shows the real mix.
+
+### Also
+
+- The booking screen refreshes the wallet balance after a ride ends or is cancelled.
+- Receipts show the carried fee and the real total, and say how the money was split ("wallet ₹50 + company QR (UPI) ₹80.52").
+- Fixed: the carried fee was read from a query that did not include it, so it was shown at booking but not collected.
+
+41 tests pass. The signed APK was rebuilt with all of the above and checked on the emulator.

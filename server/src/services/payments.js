@@ -101,40 +101,65 @@ export const debit = (userId, amount, type, opts = {}) => credit(userId, -Math.a
  * driver still owes commission, so it is deducted from their balance.
  */
 export function settleRide(ride, collectedVia = null) {
-  const total = round2(ride.fare_final ?? ride.fare_estimate);
-  const commission = commissionFor(total);
-  const driverShare = round2(total - commission);
+  const fare = round2(ride.fare_final ?? ride.fare_estimate);
+  const due = round2(ride.due_carried || 0); // a cancellation fee the rider still owed
+  const total = round2(fare + due);
+  const commission = commissionFor(fare);
+  const driverShare = round2(fare - commission);
   const pct = config.payments.commissionPercent;
-  // How the fare reached us: wallet and card are automatic; a cash ride ends
-  // with the driver saying whether it was paid on the company QR or to him.
-  const via = ride.payment_method === 'cash' ? collectedVia || 'driver' : ride.payment_method;
 
-  if (via === 'wallet') {
-    // The rider's money is already held by the company: move the fare to the
-    // company and credit the driver his share.
-    debit(ride.customer_id, total, 'ride_fare', { rideId: ride.id, note: `Ride #${ride.id}`, allowNegative: false });
-    companyEntry(total, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid from wallet` });
-    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${pct}% commission)` });
-  } else if (via === 'card' || via === 'company_qr') {
-    // Paid straight to the company (gateway or company QR): the company holds
-    // the whole fare and owes the driver his share until the next payout.
-    companyEntry(total, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid by ${via === 'card' ? 'card' : 'company QR'}` });
-    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${pct}% commission)` });
-  } else {
-    // Paid to the driver in person (cash or his own QR): he keeps the fare and
-    // the commission comes out of his wallet, which was checked before the
-    // ride was offered to him.
-    debit(ride.driver_id, commission, 'commission', { rideId: ride.id, note: `${pct}% commission on ride #${ride.id}, which you collected` });
-    companyEntry(commission, 'commission', { rideId: ride.id, userId: ride.driver_id, note: `Commission on ride #${ride.id}` });
+  // The rider's wallet paid first (worked out when the car reached the
+  // destination); the remainder was collected on the company QR, by card, or
+  // by the driver in person. The driver ends up with his share either way:
+  // what he collected in hand counts against it.
+  const walletPaid = round2(ride.wallet_paid || 0);
+  const remainder = round2(total - walletPaid);
+  let via = collectedVia;
+  if (remainder <= 0) via = 'wallet';
+  else if (ride.payment_method === 'card') via = 'card';
+  else if (!via) via = 'driver';
+
+  if (walletPaid > 0) {
+    debit(ride.customer_id, walletPaid, 'ride_fare', { rideId: ride.id, note: `Ride #${ride.id}`, allowNegative: false });
+    companyEntry(walletPaid, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid from wallet` });
   }
+  let cashInHand = 0;
+  if (remainder > 0) {
+    if (via === 'driver') cashInHand = remainder;
+    else companyEntry(remainder, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid by ${via === 'card' ? 'card' : 'company QR'}` });
+  }
+  const movement = round2(driverShare - cashInHand);
+  if (movement > 0) {
+    credit(ride.driver_id, movement, 'ride_earning', {
+      rideId: ride.id,
+      note: `Ride #${ride.id}: your ${100 - pct}% share${cashInHand ? ` less ₹${cashInHand.toFixed(2)} collected in hand` : ''}`,
+    });
+  } else if (movement < 0) {
+    // He collected more than his share in cash: the commission (and any fee the
+    // rider owed) comes out of his wallet, which was checked before the ride.
+    debit(ride.driver_id, -movement, 'commission', { rideId: ride.id, note: `Ride #${ride.id}: ${pct}% commission${due ? " and the rider's carried fee" : ''} on cash you collected` });
+    const feePart = round2(Math.min(due, -movement));
+    if (feePart > 0) companyEntry(feePart, 'collection', { rideId: ride.id, userId: ride.driver_id, note: `Carried fee on ride #${ride.id} recovered via the driver` });
+    if (round2(-movement - feePart) > 0) companyEntry(round2(-movement - feePart), 'commission', { rideId: ride.id, userId: ride.driver_id, note: `Commission on ride #${ride.id}` });
+  }
+  if (due > 0) db.prepare('UPDATE users SET outstanding_fee = MAX(0, ROUND(outstanding_fee - ?, 2)) WHERE id = ?').run(due, ride.customer_id);
   db.prepare(`UPDATE rides SET payment_status = 'paid', collected_via = ?, commission = ?, driver_share = ? WHERE id = ?`).run(via, commission, driverShare, ride.id);
-  return { total, commission, driverShare, via };
+  return { total, fare, due, walletPaid, remainder, commission, driverShare, via };
 }
 
-/** Late-cancellation fee: rider pays, driver receives it (no commission taken). */
+/**
+ * Late-cancellation fee: taken from the rider's wallet as far as it goes; the
+ * rest rides along to their next trip (a rider's wallet never goes negative).
+ * The driver receives the whole fee now; the company fronts any unpaid part
+ * and recovers it with the rider's next fare.
+ */
 export function settleCancellation(ride) {
   if (ride.cancel_fee > 0 && ride.driver_id) {
-    debit(ride.customer_id, ride.cancel_fee, 'cancel_fee', { rideId: ride.id, note: `Late cancellation of ride #${ride.id}` });
+    const w = getWallet(ride.customer_id);
+    const fromWallet = round2(Math.min(Math.max(0, w.balance), ride.cancel_fee));
+    const carried = round2(ride.cancel_fee - fromWallet);
+    if (fromWallet > 0) debit(ride.customer_id, fromWallet, 'cancel_fee', { rideId: ride.id, note: `Late cancellation of ride #${ride.id}`, allowNegative: false });
+    if (carried > 0) db.prepare('UPDATE users SET outstanding_fee = ROUND(outstanding_fee + ?, 2) WHERE id = ?').run(carried, ride.customer_id);
     credit(ride.driver_id, ride.cancel_fee, 'cancel_fee', { rideId: ride.id, note: `Rider cancelled ride #${ride.id} late` });
   }
   if (ride.driver_penalty > 0 && ride.driver_id) {

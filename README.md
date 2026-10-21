@@ -331,6 +331,8 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `ARRIVAL_RADIUS_KM` | `1` | How close the driver must be before "I've arrived" counts |
 | `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` | Open Relay | Relay for in-app calls between different networks; set your own for production |
 
+**Riders pay from a wallet:** money added in Wallet pays rides automatically when they end and covers as much as it holds; the rest is paid at the destination on the company UPI QR or to the driver, who confirms. The wallet never goes negative; a late-cancellation fee it cannot cover rides along to the next trip. The owner can wipe all rides and transactions with the Company tab button or `node scripts/reset-demo.mjs` (run in `server/`).
+
 **Before sharing a public address:** set `DEMO_PASSWORD` (or `SEED_DEMO=0`). Login attempts are rate-limited (30 failures per 15 minutes per address), map-service outages are reported to the rider in plain words, and the server shuts down cleanly on redeploy.
 
 ---

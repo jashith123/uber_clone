@@ -38,7 +38,7 @@ test('a wallet ride cannot overdraw the rider', () => {
 
 test('settling a wallet ride pays the driver the fare minus commission', () => {
   const before = getWallet(rider.id).balance;
-  const ride = { id: 1, customer_id: rider.id, driver_id: drv.id, fare_final: 200, fare_estimate: 200, payment_method: 'wallet' };
+  const ride = { id: 1, customer_id: rider.id, driver_id: drv.id, fare_final: 200, fare_estimate: 200, payment_method: 'wallet', wallet_paid: 200 };
   db.prepare(`INSERT INTO rides (id, customer_id, driver_id, vehicle_type, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
       waypoints, route_geometry, distance_km, duration_min, fare_estimate, fare_breakdown, status)
       VALUES (1, ?, ?, 'economy', 0,0,0,0, '[]', '[]', 5, 10, 200, '{}', 'completed')`).run(rider.id, drv.id);

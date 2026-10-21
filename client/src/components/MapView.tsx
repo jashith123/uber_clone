@@ -10,6 +10,7 @@ export interface MapDriver {
   lng: number;
   heading?: number | null;
   active?: boolean;
+  vehicle_type?: string | null;
 }
 
 interface Props {
@@ -129,7 +130,7 @@ export default function MapView({
       })}
 
       {drivers.map((d) => (
-        <CarMarker key={`drv-${d.id}`} lat={d.lat} lng={d.lng} heading={d.heading} active={d.active} />
+        <CarMarker key={`drv-${d.id}`} lat={d.lat} lng={d.lng} heading={d.heading} active={d.active} vehicleType={d.vehicle_type} />
       ))}
     </MapContainer>
   );

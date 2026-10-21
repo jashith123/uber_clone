@@ -50,6 +50,7 @@ interface Books {
   owed_to_drivers: number;
   owed_by_drivers: number;
   owed_to_riders: number;
+  owed_by_riders: number;
   payout_requests: { id: number; name: string; amount: number; at: string; balance: number }[];
   ledger: LedgerRow[];
   accounts: Account[];
@@ -114,6 +115,7 @@ export default function CompanyTab() {
         <div className="card stat"><small>Owed to drivers</small><strong className="amt-neg">{money(books.owed_to_drivers)}</strong><span>positive driver wallets, paid out below</span></div>
         <div className="card stat"><small>Owed by drivers</small><strong className="amt-pos">{money(books.owed_by_drivers)}</strong><span>negative wallets: commission still due</span></div>
         <div className="card stat"><small>Owed to riders</small><strong className="amt-neg">{money(books.owed_to_riders)}</strong><span>unspent rider wallet balances</span></div>
+        <div className="card stat"><small>Owed by riders</small><strong className="amt-pos">{money(books.owed_by_riders)}</strong><span>cancellation fees collected with their next ride</span></div>
         <div className="card stat"><small>Net position</small><strong className={signedClass(books.cash_held - books.owed_to_drivers - books.owed_to_riders)}>{signed(books.cash_held - books.owed_to_drivers - books.owed_to_riders)}</strong><span>cash held minus what is owed out</span></div>
       </div>
 
@@ -196,6 +198,27 @@ export default function CompanyTab() {
       </div>
 
       <h2>Company ledger</h2>
+      <p>
+        <button
+          className="btn btn-danger-ghost btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm('Wipe every ride, wallet transaction and ledger entry? Accounts, vehicles, prices and promo codes stay. This cannot be undone.')) return;
+            setBusy(true);
+            try {
+              await api('/admin/reset-demo', { method: 'POST' });
+              setMsg('All rides and transactions were cleared. The books now show only what happens from here.');
+              load();
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Reset all rides and transactions (demo)
+        </button>
+      </p>
       <ul className="trip-list">
         {books.ledger.length === 0 && <li className="muted">Nothing yet.</li>}
         {books.ledger.map((t) => (

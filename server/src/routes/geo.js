@@ -100,6 +100,8 @@ geoRouter.post('/routes', requireAuth, async (req, res, next) => {
 
     res.json({
       routes: withQuotes,
+      // A cancellation fee still owed from an earlier ride is added to the next one.
+      due_carried: Math.round((req.user.outstanding_fee || 0) * 100) / 100,
       surge: perType,
       promo: promo_code ? promo : null,
     });

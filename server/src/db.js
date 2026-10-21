@@ -73,6 +73,9 @@ function migrate(db) {
   ensureColumn('driver_profiles', 'payout_requested', 'REAL NOT NULL DEFAULT 0');
   ensureColumn('driver_profiles', 'payout_requested_at', 'TEXT');
   ensureColumn('users', 'is_owner', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('users', 'outstanding_fee', 'REAL NOT NULL DEFAULT 0'); // rider fines not yet collected; added to the next ride
+  ensureColumn('rides', 'due_carried', 'REAL NOT NULL DEFAULT 0');     // outstanding fee folded into this ride
+  ensureColumn('rides', 'wallet_paid', 'REAL NOT NULL DEFAULT 0');     // part of the total paid from the rider's wallet
 
   // Ratings are the plain average of every rating received; keep the cached
   // copy on the profile honest for databases rated under the old running sum.

@@ -211,41 +211,7 @@ test('dispatch offers to the nearest free driver and stops when the ride is take
 // ---------------------------------------------------------------- wallet ----
 
 
-test('a wallet booking is refused when the wallet cannot cover the fare', () => {
-  const poor = Number(
-    db.prepare('INSERT INTO users (role,name,email,password_hash) VALUES (?,?,?,?)').run('customer', 'P', 'poor@t.com', hashPassword('x')).lastInsertRowid,
-  );
-  assert.throws(() => rides.assertWalletCovers(poor, 170), /wallet has ₹0\.00 but this ride costs ₹170\.00/);
-  payments.credit(poor, 169.99, 'topup', { note: 'test' });
-  assert.throws(() => rides.assertWalletCovers(poor, 170), /Add money/);
-  payments.credit(poor, 0.01, 'topup', { note: 'test' });
-  assert.doesNotThrow(() => rides.assertWalletCovers(poor, 170));
-});
 
-test('a wallet ride whose balance ran out by the end is settled as cash, so the driver is still paid', () => {
-  const id = insertRequested();
-  db.prepare(`UPDATE rides SET payment_method = 'wallet' WHERE id = ?`).run(id);
-  // The rider's wallet is empty by the time the trip ends.
-  const w = payments.getWallet(customer.id);
-  if (w.balance !== 0) payments.credit(customer.id, -w.balance, 'adjustment', { note: 'zero for test' });
-  const driverBefore = payments.getWallet(driver.id).balance;
-
-  rides.acceptRide(driver, id);
-  rides.advanceRide(driver, id, 'arrived');
-  rides.advanceRide(driver, id, 'in_progress', { pin: '1234' });
-  const r = rides.advanceRide(driver, id, 'completed', { collected_via: 'driver' });
-
-  assert.equal(r.status, 'completed');
-  assert.equal(r.payment_method, 'cash', 'falls back to cash');
-  assert.equal(r.payment_status, 'paid');
-  // Cash settlement: the driver keeps the fare and owes only the commission.
-  const driverAfter = payments.getWallet(driver.id).balance;
-  assert.ok(driverAfter < driverBefore, 'commission was debited from the driver');
-  assert.equal(payments.getWallet(customer.id).balance, 0, 'the empty wallet was not driven negative');
-  const trail = db.prepare(`SELECT type FROM ride_events WHERE ride_id = ? ORDER BY id`).all(id).map((e) => e.type);
-  assert.ok(trail.includes('payment_fallback_cash'));
-  assert.ok(!trail.includes('settle_failed'));
-});
 
 // ------------------------------------------------- arrival, class, ratings ----
 
@@ -388,4 +354,114 @@ test('the owner pays a driver out of what the company holds', () => {
   assert.equal(payments.companyBalance(), Math.round((companyBefore - 50) * 100) / 100);
   assert.equal(db.prepare('SELECT payout_requested FROM driver_profiles WHERE user_id = ?').get(d.id).payout_requested, 0);
   assert.throws(() => payments.payDriver(d.id, 1e9), /only holds/);
+});
+
+// --------------------------------------------- rider wallet, fines, reset ----
+
+function zeroWallet(userId) {
+  const w = payments.getWallet(userId);
+  if (w.balance !== 0) payments.credit(userId, -w.balance, 'adjustment', { note: 'zero for test' });
+}
+
+test('the rider wallet pays what it can and the rest is collected at the destination', () => {
+  const d = mkDriver('wallet1@t.com');
+  zeroWallet(customer.id);
+  payments.credit(customer.id, 50, 'topup', { note: 'test' }); // ₹50 against a ₹170 fare
+  const id = insertRequested();
+  db.prepare(`UPDATE rides SET payment_method = 'wallet' WHERE id = ?`).run(id);
+  offerTo(id, d.id);
+  rides.acceptRide(d, id);
+  rides.advanceRide(d, id, 'arrived');
+  rides.advanceRide(d, id, 'in_progress', { pin: '1234' });
+  let r = rides.advanceRide(d, id, 'completed');
+  assert.equal(r.payment_status, 'collecting');
+  assert.equal(r.wallet_paid, 50);
+  assert.equal(r.total_due, 170);
+  const companyBefore = payments.companyBalance();
+  const driverBefore = payments.getWallet(d.id).balance;
+  r = rides.advanceRide(d, id, 'completed', { collected_via: 'company_qr' });
+  assert.equal(r.status, 'completed');
+  assert.equal(payments.getWallet(customer.id).balance, 0, 'wallet emptied, never negative');
+  assert.equal(payments.companyBalance(), Math.round((companyBefore + 170) * 100) / 100, '50 from the wallet + 120 on the QR');
+  assert.equal(payments.getWallet(d.id).balance, Math.round((driverBefore + 153) * 100) / 100, 'driver gets his 90%');
+});
+
+test('a wallet that covers the whole fare ends the ride with nothing to collect', () => {
+  const d = mkDriver('wallet2@t.com');
+  zeroWallet(customer.id);
+  payments.credit(customer.id, 500, 'topup', { note: 'test' });
+  const id = insertRequested();
+  db.prepare(`UPDATE rides SET payment_method = 'wallet' WHERE id = ?`).run(id);
+  offerTo(id, d.id);
+  rides.acceptRide(d, id);
+  rides.advanceRide(d, id, 'arrived');
+  rides.advanceRide(d, id, 'in_progress', { pin: '1234' });
+  const r = rides.advanceRide(d, id, 'completed');
+  assert.equal(r.status, 'completed');
+  assert.equal(r.collected_via, 'wallet');
+  assert.equal(r.wallet_paid, 170);
+  assert.equal(payments.getWallet(customer.id).balance, 330);
+});
+
+test('a late-cancellation fee comes out of the wallet, never below zero; the rest rides along to the next trip', () => {
+  const d = mkDriver('fee1@t.com');
+  zeroWallet(customer.id);
+  payments.credit(customer.id, 10, 'topup', { note: 'test' }); // only ₹10 against a ₹30 fee
+  const id = insertRequested();
+  offerTo(id, d.id);
+  rides.acceptRide(d, id);
+  rides.advanceRide(d, id, 'arrived'); // after arrival the fee applies
+  const driverBefore = payments.getWallet(d.id).balance;
+  const owedBefore = db.prepare('SELECT outstanding_fee FROM users WHERE id = ?').get(customer.id).outstanding_fee;
+  const r = rides.cancelRide(customer, id, 'test');
+  assert.equal(r.cancel_fee, 30);
+  assert.equal(payments.getWallet(customer.id).balance, 0, 'wallet drained to zero, not negative');
+  const u = db.prepare('SELECT outstanding_fee FROM users WHERE id = ?').get(customer.id);
+  assert.equal(Math.round((u.outstanding_fee - owedBefore) * 100) / 100, 20, 'the unpaid ₹20 is carried');
+  assert.equal(payments.getWallet(d.id).balance, Math.round((driverBefore + 30) * 100) / 100, 'the driver still gets the whole fee');
+
+  // The next ride carries the ₹20 and collects it with the fare.
+  const id2 = insertRequested();
+  // insertRequested bypasses createRide, so carry the fee the way createRide does.
+  db.prepare('UPDATE rides SET due_carried = 20 WHERE id = ?').run(id2);
+  const d2 = mkDriver('fee2@t.com');
+  offerTo(id2, d2.id);
+  rides.acceptRide(d2, id2);
+  rides.advanceRide(d2, id2, 'arrived');
+  rides.advanceRide(d2, id2, 'in_progress', { pin: '1234' });
+  let r2 = rides.advanceRide(d2, id2, 'completed');
+  assert.equal(r2.total_due, 190, '170 fare + 20 carried');
+  const companyBefore = payments.companyBalance();
+  r2 = rides.advanceRide(d2, id2, 'completed', { collected_via: 'driver' });
+  assert.equal(r2.status, 'completed');
+  // The driver holds ₹190 in cash; his share is ₹153, so ₹37 leaves his wallet: ₹17 commission + ₹20 carried fee.
+  const tx = db.prepare(`SELECT amount FROM wallet_transactions WHERE user_id = ? AND ride_id = ? AND type = 'commission'`).get(d2.id, id2);
+  assert.equal(tx.amount, -37);
+  assert.equal(payments.companyBalance(), Math.round((companyBefore + 37) * 100) / 100);
+  assert.equal(Math.round((db.prepare('SELECT outstanding_fee FROM users WHERE id = ?').get(customer.id).outstanding_fee - owedBefore) * 100) / 100, 0, 'the carried ₹20 is cleared');
+});
+
+test('a wallet rider whose wallet covers the fare can be served by a driver with an empty wallet', () => {
+  const poorDriver = mkDriver('poor@t.com', 28.9, 77.5); // alone near this pickup
+  zeroWallet(poorDriver.id);
+  zeroWallet(customer.id);
+  payments.credit(customer.id, 500, 'topup', { note: 'test' });
+  const id = insertRequested({ offer: false });
+  db.prepare(`UPDATE rides SET payment_method = 'wallet', pickup_lat = 28.9, pickup_lng = 77.5 WHERE id = ?`).run(id);
+  assert.equal(rides.mayCollectCash(db.prepare('SELECT * FROM rides WHERE id = ?').get(id)), false);
+  dispatch.startDispatch(id, 1);
+  assert.equal(dispatch.hasOffer(id, poorDriver.id), true, 'offered: no cash can change hands');
+  assert.equal(rides.acceptRide(poorDriver, id).status, 'accepted');
+});
+
+test('the reset wipes rides and transactions but keeps accounts', async () => {
+  const { resetDemoData } = await import('../src/services/reset.js');
+  assert.ok(db.prepare('SELECT COUNT(*) AS n FROM rides').get().n > 0);
+  resetDemoData();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rides').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM wallet_transactions').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM company_ledger').get().n, 0);
+  assert.equal(payments.getWallet(customer.id).balance, 0);
+  assert.ok(db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0, 'accounts kept');
+  assert.ok(db.prepare('SELECT COUNT(*) AS n FROM pricing').get().n >= 5, 'prices kept');
 });
