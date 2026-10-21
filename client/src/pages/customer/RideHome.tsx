@@ -123,7 +123,11 @@ export default function RideHome() {
         if (id !== routeReq.current) return;
         setRoutes(r.routes);
         setRouteIndex(0);
-        setPromoCheck(r.promo);
+        // A rejected code is dropped so the fare returns to full price, but the
+        // reason must stay on screen: the follow-up fetch (now with no code)
+        // comes back with promo = null and used to wipe the message.
+        if (r.promo) setPromoCheck(r.promo);
+        else setPromoCheck((prev) => (prev && !prev.ok ? prev : null));
         if (r.promo && !r.promo.ok) setPromoApplied(null);
       })
       .catch((e) => id === routeReq.current && setError((e as Error).message))
@@ -439,7 +443,10 @@ export default function RideHome() {
                           className="search-input"
                           placeholder="Promo code"
                           value={promoInput}
-                          onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                          onChange={(e) => {
+                          setPromoInput(e.target.value.toUpperCase());
+                          setPromoCheck(null);
+                        }}
                         />
                         <button className="btn btn-light btn-sm" disabled={!promoInput.trim()} onClick={() => setPromoApplied(promoInput.trim())}>
                           Apply

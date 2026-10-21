@@ -225,7 +225,7 @@ Because the server recreates the demo accounts whenever it finds an empty databa
 | **File uploads** | Multer, stored on disk | Driver documents |
 | **Native app** | Capacitor 7 → Android (Gradle, Java 21) | Wraps the same code into a signed APK |
 | **PWA** | Hand-written service worker + manifest | Offline shell, installable, receives push |
-| **Tests** | Node's built-in test runner | 27 tests, no extra framework, no network |
+| **Tests** | Node's built-in test runner | 29 tests, no extra framework, no network |
 | **Container** | Docker + docker-compose | One command to run anywhere |
 
 No paid service is required to run any of it. The only optional paid pieces are a real payment gateway, SMS verification and app-store distribution.
@@ -328,7 +328,7 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 npm test
 ```
 
-27 tests, no network required:
+29 tests, no network required:
 
 - **Fares** — the formula, minimum-fare floor, surge applied only to distance and time, discount after the floor, negative and NaN inputs clamped.
 - **Money** — wallet ledger and running balance, overdraft refused, wallet ride pays the driver net of commission, cash ride takes only commission.

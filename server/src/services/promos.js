@@ -8,13 +8,21 @@ const stmts = {
   userUses: db.prepare('SELECT COUNT(*) AS n FROM promo_redemptions WHERE code = ? COLLATE NOCASE AND user_id = ?'),
   redeem: db.prepare('INSERT INTO promo_redemptions (code, user_id, ride_id, discount) VALUES (?,?,?,?)'),
   bump: db.prepare('UPDATE promo_codes SET used_count = used_count + 1 WHERE code = ? COLLATE NOCASE'),
-  listActive: db.prepare(`SELECT code, description, kind, value, max_discount, min_fare FROM promo_codes
+  listActive: db.prepare(`SELECT code, description, kind, value, max_discount, min_fare, per_user_limit, total_limit, used_count FROM promo_codes
                           WHERE active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))
                           ORDER BY value DESC`),
 };
 
-export function listPromos() {
-  return stmts.listActive.all();
+/**
+ * Codes the rider can still use. Fully-used codes and ones this rider has
+ * exhausted are left out, so every chip offered on the ride screen works.
+ */
+export function listPromos(user = null) {
+  return stmts.listActive
+    .all()
+    .filter((p) => !(p.total_limit > 0 && p.used_count >= p.total_limit))
+    .filter((p) => !user || stmts.userUses.get(p.code, user.id).n < p.per_user_limit)
+    .map(({ per_user_limit, total_limit, used_count, ...p }) => p);
 }
 
 /**

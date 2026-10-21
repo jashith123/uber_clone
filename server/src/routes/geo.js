@@ -14,7 +14,7 @@ geoRouter.get('/pricing', (_req, res) => {
 });
 
 /** Offers the rider can tap instead of typing a code. */
-geoRouter.get('/promos', requireAuth, (_req, res) => res.json({ promos: listPromos() }));
+geoRouter.get('/promos', requireAuth, (req, res) => res.json({ promos: listPromos(req.user) }));
 
 /**
  * GET /api/geo/suggest?q=   Instant suggestions: the user's recent places,

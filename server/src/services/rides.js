@@ -9,7 +9,7 @@ import { computeFare } from './fare.js';
 import { surgeAt } from './surge.js';
 import { quotePromo, redeemPromo } from './promos.js';
 import { makePin, makeShareToken } from './safety.js';
-import { settleRide, settleCancellation } from './payments.js';
+import { settleRide, settleCancellation, getWallet } from './payments.js';
 import * as dispatch from './dispatch.js';
 
 export const RIDE_STATES = ['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'];
@@ -137,6 +137,17 @@ function broadcast(rideId, event = 'ride:update') {
   return row;
 }
 
+/** Refuse a wallet booking the wallet cannot pay for. */
+export function assertWalletCovers(customerId, amount) {
+  const { balance } = getWallet(customerId);
+  if (balance < amount) {
+    throw Object.assign(
+      new Error(`Your wallet has ₹${balance.toFixed(2)} but this ride costs ₹${amount.toFixed(2)}. Add money, or pay by cash or card.`),
+      { status: 402 },
+    );
+  }
+}
+
 /**
  * Create a ride from the customer's chosen waypoints + route alternative.
  * The server re-requests the route so distance and fare are computed from
@@ -184,6 +195,10 @@ export async function createRide(customer, body) {
     discount: promo.discount,
     promoCode: promo.ok ? promo.code : null,
   });
+
+  // A wallet ride is only accepted when the wallet can cover the estimate, so a
+  // driver never finishes a trip to find there was nothing to collect.
+  if (payment_method === 'wallet') assertWalletCovers(customer.id, total);
 
   const dropoff = waypoints[waypoints.length - 1];
   const result = stmts.insert.run(
@@ -304,9 +319,17 @@ export function advanceRide(driver, rideId, nextStatus, { pin } = {}) {
     try {
       settleRide(fresh);
     } catch (e) {
-      // Not enough wallet balance: the trip still ends, the amount is left owing.
-      logEvent(rideId, driver.id, 'settle_failed', { error: e.message });
-      db.prepare(`UPDATE rides SET payment_status = 'failed' WHERE id = ?`).run(rideId);
+      // The wallet came up short between booking and the end of the trip. The
+      // rider pays the driver in cash instead, exactly like a cash booking, so
+      // the driver is never left unpaid.
+      logEvent(rideId, driver.id, 'payment_fallback_cash', { from: fresh.payment_method, error: e.message });
+      db.prepare(`UPDATE rides SET payment_method = 'cash' WHERE id = ?`).run(rideId);
+      try {
+        settleRide(stmts.ride.get(rideId));
+      } catch (e2) {
+        logEvent(rideId, driver.id, 'settle_failed', { error: e2.message });
+        db.prepare(`UPDATE rides SET payment_status = 'failed' WHERE id = ?`).run(rideId);
+      }
     }
   }
 

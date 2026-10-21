@@ -205,3 +205,43 @@ test('dispatch offers to the nearest free driver and stops when the ride is take
   rides.cancelRide(driver, id, 'cleanup');
   rides.cancelRide(customer, id, 'cleanup');
 });
+
+// ---------------------------------------------------------------- wallet ----
+
+const payments = await import('../src/services/payments.js');
+
+test('a wallet booking is refused when the wallet cannot cover the fare', () => {
+  const poor = Number(
+    db.prepare('INSERT INTO users (role,name,email,password_hash) VALUES (?,?,?,?)').run('customer', 'P', 'poor@t.com', hashPassword('x')).lastInsertRowid,
+  );
+  assert.throws(() => rides.assertWalletCovers(poor, 170), /wallet has ₹0\.00 but this ride costs ₹170\.00/);
+  payments.credit(poor, 169.99, 'topup', { note: 'test' });
+  assert.throws(() => rides.assertWalletCovers(poor, 170), /Add money/);
+  payments.credit(poor, 0.01, 'topup', { note: 'test' });
+  assert.doesNotThrow(() => rides.assertWalletCovers(poor, 170));
+});
+
+test('a wallet ride whose balance ran out by the end is settled as cash, so the driver is still paid', () => {
+  const id = insertRequested();
+  db.prepare(`UPDATE rides SET payment_method = 'wallet' WHERE id = ?`).run(id);
+  // The rider's wallet is empty by the time the trip ends.
+  const w = payments.getWallet(customer.id);
+  if (w.balance !== 0) payments.credit(customer.id, -w.balance, 'adjustment', { note: 'zero for test' });
+  const driverBefore = payments.getWallet(driver.id).balance;
+
+  rides.acceptRide(driver, id);
+  rides.advanceRide(driver, id, 'arrived');
+  rides.advanceRide(driver, id, 'in_progress', { pin: '1234' });
+  const r = rides.advanceRide(driver, id, 'completed');
+
+  assert.equal(r.status, 'completed');
+  assert.equal(r.payment_method, 'cash', 'falls back to cash');
+  assert.equal(r.payment_status, 'paid');
+  // Cash settlement: the driver keeps the fare and owes only the commission.
+  const driverAfter = payments.getWallet(driver.id).balance;
+  assert.ok(driverAfter < driverBefore, 'commission was debited from the driver');
+  assert.equal(payments.getWallet(customer.id).balance, 0, 'the empty wallet was not driven negative');
+  const trail = db.prepare(`SELECT type FROM ride_events WHERE ride_id = ? ORDER BY id`).all(id).map((e) => e.type);
+  assert.ok(trail.includes('payment_fallback_cash'));
+  assert.ok(!trail.includes('settle_failed'));
+});

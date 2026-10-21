@@ -41,7 +41,13 @@ adminRouter.get('/stats', (_req, res) => {
         COALESCE(SUM(CASE WHEN status='completed' THEN fare_final ELSE 0 END),0) AS gross_fares,
         COALESCE(SUM(cancel_fee),0) AS cancel_fees
       FROM rides`),
-    commission: one(`SELECT COALESCE(-SUM(amount),0) AS total FROM wallet_transactions WHERE type = 'commission'`).total,
+    // Commission from every completed, paid ride. Cash rides debit it from the
+    // driver's wallet; wallet and card rides keep it by crediting the driver net
+    // of commission, so it is the gap between those fares and the credits.
+    commission: one(`SELECT ROUND(
+        COALESCE((SELECT -SUM(amount) FROM wallet_transactions WHERE type = 'commission'), 0)
+        + COALESCE((SELECT SUM(fare_final) FROM rides WHERE status = 'completed' AND payment_status = 'paid' AND payment_method IN ('wallet','card')), 0)
+        - COALESCE((SELECT SUM(amount) FROM wallet_transactions WHERE type = 'ride_earning'), 0), 2) AS total`).total,
     open_sos: one(`SELECT COUNT(*) AS n FROM sos_alerts WHERE status != 'resolved'`).n,
   });
 });

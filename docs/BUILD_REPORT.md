@@ -1,6 +1,6 @@
 # SwiftRide — Build Report
 
-Date: 5 September 2026 (updated the same day with phase 2: theme, chat, calls, PWA, Docker)
+Date: 5 September 2026 (updated 21 October 2026 with phase 7: end-to-end check and fixes)
 Project: `C:\Projects\Ideas\Uber`
 Goal: an Uber-style ride-hailing app built from scratch (frontend, backend, database), with separate customer and driver accounts, working ride requests, and the key differentiator: **the customer chooses the route and the fare is calculated from the kilometres of that route.**
 
@@ -379,3 +379,42 @@ Driver documents upload through Multer to `server/data/uploads` with a type and 
 - Demo credentials as a shared component with per-field and copy-all clipboard buttons.
 - 15 new tests (27 total) covering dispatch, the wallet, promos, surge and the PIN.
 - `docs/report.html`: a plain-language status report covering what works, what does not, what is free, what costs money, and what is needed from the user.
+
+---
+
+## 18. Phase 7 (21 October 2026): full end-to-end check and fixes
+
+The app was started from the committed code (`npm test`, `npm run build`, then the server on port 4000) and every flow was driven in a real browser, with the other party on the API where two accounts were needed at once.
+
+### What was verified working
+
+| Area | Result |
+| --- | --- |
+| Landing, login, signup | Load and render. Role lock refuses driver credentials on the rider tab with a clear message. Duplicate email and wrong password are refused. |
+| Rider booking | Geolocation fills the pickup. Suggestions show recent places and address search. Route, four classes, fare formula, promo chips and payment choice all render. FLAT30 took ₹30 off (₹222.67 to ₹192.67). |
+| Dispatch | A driver who came online after the request still received the offer with a countdown. |
+| Realtime | The rider screen moved through "Driver has arrived", "On trip" and "Trip complete" without a reload. |
+| Trip PIN | A wrong PIN is refused; the right one starts the trip. |
+| Driver screen | Offer, accept, arrive, PIN entry, simulated GPS (the car's position streamed to the rider), complete, receipt. |
+| Money | Wallet top-up in the UI. The driver's wallet balance equals the earnings screen to the paisa. |
+| Share link | Public trip page works without login; a bad token is refused. |
+| Admin | Overview, rides, users, promo codes and fares tabs load with live figures. |
+| Phone layout | 390 px wide: no horizontal scroll, bottom tab bar present. |
+
+Screenshots from this run: `docs/screenshots/test-2026-10-21-*.png`.
+
+### Bugs found and fixed
+
+1. **A rejected promo code showed no message.** The server replied "You have already used this code", but the ride page then re-fetched routes without the code and the empty reply wiped the message, so tapping the chip appeared to do nothing. The reason now stays on screen until the rider edits the code. (`client/src/pages/customer/RideHome.tsx`)
+2. **A wallet ride could be booked with an empty wallet.** The UI warned, but the API did not check, so a wallet ride from a rider with ₹0 reached completion, payment was marked failed, and the driver was paid nothing. Two changes: the server now refuses a wallet booking the balance cannot cover (HTTP 402 with the shortfall spelled out), and if a wallet still comes up short at the end of a trip the ride is settled as cash, so the driver is paid and owes only commission. The event log records `payment_fallback_cash`. (`server/src/services/rides.js`)
+3. **Promo chips offered codes the rider could not use.** The offers list now leaves out codes the rider has exhausted and codes that hit their total limit. (`server/src/services/promos.js`, `routes/geo.js`)
+4. **Admin "Platform commission" counted cash rides only.** Wallet and card rides keep their commission by crediting the driver net, so they never appeared. The figure now covers every paid ride. (`server/src/routes/admin.js`)
+5. **No way to rate a trip after leaving the receipt.** A reload after completion dropped the rating prompt for good. My trips now offers the stars on any completed, unrated trip. (`client/src/pages/customer/Trips.tsx`)
+
+Two new tests cover the wallet guard and the cash fallback; 29 tests pass.
+
+### Noted, not changed
+
+- Admin "Rides today" counts by booking date while driver earnings count by completion date, so the two can differ for a ride that spans midnight.
+- Address search can list the same place twice when Nominatim returns two entries at the same coordinates (seen with "Lotus Pond").
+- The login page remembers the last role tab, which is convenient but surprised an admin login after driver testing.

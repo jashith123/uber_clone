@@ -86,7 +86,7 @@ function Overview({ stats }: { stats: AdminStats | null }) {
       <div className="stat-row">
         <Stat label="Rides today" value={String(stats.today.rides)} sub={`${money(stats.today.gross)} · ${km(stats.today.km)}`} />
         <Stat label="Active right now" value={String(stats.rides.active)} sub={`${stats.drivers_online} drivers online`} />
-        <Stat label="Platform commission" value={money(stats.commission)} sub="from cash rides" />
+        <Stat label="Platform commission" value={money(stats.commission)} sub="across all paid rides" />
       </div>
       <div className="stat-row">
         <Stat label="Riders" value={String(stats.users.riders)} sub={`${stats.users.blocked} blocked`} />

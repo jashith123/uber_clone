@@ -6,6 +6,27 @@ import type { Ride } from '../../lib/types';
 export default function Trips() {
   const [rides, setRides] = useState<Ride[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [stars, setStars] = useState(0);
+  const [rating, setRating] = useState(false);
+
+  function toggle(id: number) {
+    setOpen(open === id ? null : id);
+    setStars(0);
+  }
+
+  /** Rate a finished trip from history, for riders who closed the receipt before rating. */
+  async function rate(id: number) {
+    setRating(true);
+    try {
+      await api(`/rides/${id}/rate`, { method: 'POST', body: { stars } });
+      setRides((list) => list?.map((x) => (x.id === id ? { ...x, driver_rating: stars } : x)) ?? null);
+      setStars(0);
+    } catch (e) {
+      window.alert((e as Error).message);
+    } finally {
+      setRating(false);
+    }
+  }
 
   useEffect(() => {
     api<{ rides: Ride[] }>('/rides').then((r) => setRides(r.rides)).catch(() => setRides([]));
@@ -37,7 +58,7 @@ export default function Trips() {
         {rides?.map((r) => {
           const l = rideLedger(r, 'customer');
           return (
-            <li key={r.id} className="card trip-item" onClick={() => setOpen(open === r.id ? null : r.id)}>
+            <li key={r.id} className="card trip-item" onClick={() => toggle(r.id)}>
               <div className="trip-head">
                 <div>
                   <strong>{shortAddress(r.dropoff_address, 'Drop-off')}</strong>
@@ -70,6 +91,21 @@ export default function Trips() {
                     {r.driver_rating ? ` · you rated ${r.driver_rating} ★` : ''}
                     {r.cancel_reason ? ` · reason: ${r.cancel_reason}` : ''}
                   </p>
+                  {r.status === 'completed' && !r.driver_rating && r.driver && (
+                    <div className="rate" onClick={(e) => e.stopPropagation()}>
+                      <p>Rate your driver</p>
+                      <div className="stars">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button key={n} className={n <= stars ? 'on' : ''} onClick={() => setStars(n)} aria-label={`${n} stars`}>
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                      <button className="btn btn-primary btn-sm" disabled={!stars || rating} onClick={() => rate(r.id)}>
+                        Submit rating
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </li>
