@@ -20,3 +20,6 @@ dist-apk/
 
 # Auto-start log
 logs/
+
+# Generated session secret (server/data/jwt-secret) — never commit
+jwt-secret

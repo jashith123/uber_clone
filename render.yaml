@@ -31,6 +31,12 @@ services:
         value: 0
       - key: ADMIN_EMAILS
         value: admin@demo.com
+      # Replace the well-known demo password before sharing the address.
+      # Leave unset to keep "password" (it is then printed on the login page).
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
       # Push notifications: generate a pair locally with `npm run push:keys`
       # and paste them into the Render dashboard. Leave blank to disable push.
       - key: VAPID_PUBLIC_KEY

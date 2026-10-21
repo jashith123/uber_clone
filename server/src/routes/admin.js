@@ -32,11 +32,13 @@ adminRouter.get('/stats', (_req, res) => {
         SUM(status = 'cancelled') AS cancelled,
         SUM(status IN ('requested','accepted','arrived','in_progress')) AS active
       FROM rides`),
+    // Booked today, plus what was earned today by completion time, the same
+    // clock the driver's earnings screen uses, so the two figures agree.
     today: one(`SELECT
-        COUNT(*) AS rides,
-        COALESCE(SUM(CASE WHEN status='completed' THEN fare_final ELSE 0 END),0) AS gross,
-        COALESCE(SUM(CASE WHEN status='completed' THEN distance_km ELSE 0 END),0) AS km
-      FROM rides WHERE date(created_at) = date('now')`),
+        (SELECT COUNT(*) FROM rides WHERE date(created_at) = date('now')) AS rides,
+        ROUND(COALESCE(SUM(fare_final),0), 2) AS gross,
+        COALESCE(SUM(distance_km),0) AS km
+      FROM rides WHERE status = 'completed' AND date(completed_at) = date('now')`),
     revenue: one(`SELECT
         COALESCE(SUM(CASE WHEN status='completed' THEN fare_final ELSE 0 END),0) AS gross_fares,
         COALESCE(SUM(cancel_fee),0) AS cancel_fees

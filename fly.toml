@@ -3,7 +3,7 @@
 #
 #   fly launch --no-deploy      (once, to create the app)
 #   fly volumes create swiftride_data --size 1 --region bom
-#   fly secrets set JWT_SECRET=$(openssl rand -hex 32)
+#   fly secrets set JWT_SECRET=$(openssl rand -hex 32) DEMO_PASSWORD=<something-private>
 #   fly deploy
 #
 # Check current pricing before you rely on this: a machine this small has
@@ -18,6 +18,7 @@ primary_region = "bom"          # Mumbai
 [env]
   PORT = "4000"
   DB_PATH = "/data/swiftride.db"
+  UPLOAD_DIR = "/data/uploads"
   PAYMENT_PROVIDER = "mock"
   COMMISSION_PERCENT = "15"
   REQUIRE_DRIVER_APPROVAL = "0"

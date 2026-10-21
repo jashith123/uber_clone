@@ -8,18 +8,38 @@ import { config } from '../config.js';
 
 const cache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX = 2000;
+const UPSTREAM_TIMEOUT_MS = 10_000;
 
+/**
+ * Fetch JSON from OSRM or Nominatim with a timeout and a short cache. Failures
+ * become messages a rider can act on; the raw upstream reply goes to the log.
+ */
 async function cachedJson(url, init) {
   const hit = cache.get(url);
   if (hit && hit.expires > Date.now()) return hit.value;
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'User-Agent': config.userAgent, Accept: 'application/json', ...(init?.headers || {}) },
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      headers: { 'User-Agent': config.userAgent, Accept: 'application/json', ...(init?.headers || {}) },
+    });
+  } catch (e) {
+    const why = e?.name === 'TimeoutError' ? 'did not answer in time' : 'could not be reached';
+    console.warn(`map service ${why}: ${url.slice(0, 120)} (${e?.cause?.code || e?.name || e})`);
+    throw Object.assign(new Error(`The map service ${why}. Please try again in a moment.`), { status: 503, logged: true });
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw Object.assign(new Error(`Upstream ${res.status}: ${text.slice(0, 200)}`), { status: 502 });
+    console.warn(`map service ${res.status} for ${url.slice(0, 120)}: ${text.slice(0, 120)}`);
+    const msg =
+      res.status === 429
+        ? 'The map service is busy right now. Please try again in a few seconds.'
+        : 'The map service returned an error. Please try again.';
+    throw Object.assign(new Error(msg), { status: 502, logged: true });
   }
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
   const value = await res.json();
   cache.set(url, { value, expires: Date.now() + CACHE_TTL_MS });
   return value;
@@ -49,13 +69,19 @@ export async function geocode(query, { limit = 6, near } = {}) {
     params.set('viewbox', `${near.lng - d},${near.lat + d},${near.lng + d},${near.lat - d}`);
   }
   const data = await cachedJson(`${config.nominatimUrl}/search?${params}`);
-  return data.map((r) => ({
+  const places = data.map((r) => ({
     label: r.display_name,
     name: r.name || r.display_name.split(',')[0],
     lat: Number(r.lat),
     lng: Number(r.lon),
     type: r.type,
   }));
+  // Nominatim often returns the same place twice (a node and a way); keep one.
+  const kept = [];
+  for (const p of places) {
+    if (!kept.some((k) => k.name === p.name && haversineKm(k, p) < 0.25)) kept.push(p);
+  }
+  return kept;
 }
 
 export async function reverseGeocode(lat, lng) {

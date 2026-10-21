@@ -65,6 +65,16 @@ authRouter.post('/login', (req, res) => {
   res.json({ token: signToken(user), user });
 });
 
+/**
+ * GET /api/auth/demo   Whether the demo accounts exist on this server, and
+ * their password while it is still the default (so the login page can print
+ * it). Once DEMO_PASSWORD is set, the password is no longer given out.
+ */
+authRouter.get('/demo', (_req, res) => {
+  const enabled = Boolean(db.prepare(`SELECT 1 FROM users WHERE email = 'customer@demo.com'`).get());
+  res.json({ enabled, password: enabled && config.demoPassword === 'password' ? 'password' : null });
+});
+
 /** Current user. Also hands back a fresh token once a day so sessions never lapse while the app is in use. */
 authRouter.get('/me', requireAuth, (req, res) => {
   const age = Math.floor(Date.now() / 1000) - (req.tokenIssuedAt || 0);

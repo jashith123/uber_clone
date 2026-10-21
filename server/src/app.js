@@ -14,6 +14,7 @@ import { pushRouter } from './routes/push.js';
 import { adminRouter } from './routes/admin.js';
 import { nearbyDrivers } from './realtime.js';
 import { requireAuth } from './auth.js';
+import { rateLimit } from './ratelimit.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,11 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+  // Password guessing and signup floods are the cheap attacks on a public
+  // address; everything else is behind a login.
+  app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, skipSuccessful: true, message: 'Too many login attempts. Please wait 15 minutes and try again.' }));
+  app.post('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: 'Too many new accounts from this network. Please try again later.' }));
   app.use('/api/auth', authRouter);
   app.use('/api/geo', geoRouter);
   app.use('/api/rides', ridesRouter);
@@ -59,7 +65,7 @@ export function createApp() {
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
     const status = err.status || 500;
-    if (status >= 500) console.error(err);
+    if (status >= 500 && !err.logged) console.error(err);
     res.status(status).json({ error: err.message || 'Internal error' });
   });
   return app;

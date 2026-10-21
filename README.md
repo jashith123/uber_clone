@@ -319,6 +319,12 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `ADMIN_EMAILS` | `admin@demo.com` | Accounts that get the admin panel |
 | `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` | empty | Push notifications (`npm run push:keys` writes them) |
 | `OSRM_URL` / `NOMINATIM_URL` | public servers | Point at your own for production |
+| `JWT_SECRET` | generated | Signs sessions. Left empty, a strong one is made on first start and kept next to the database |
+| `SEED_DEMO` | `1` | `0` skips the demo accounts on an empty database and creates only an admin |
+| `DEMO_PASSWORD` / `ADMIN_PASSWORD` | `password` | Replace the well-known demo password before sharing a public address; the login page stops printing it |
+| `CLIENT_ORIGIN` | empty | Extra browser origins for the API. The site and the phone app need none |
+
+**Before sharing a public address:** set `DEMO_PASSWORD` (or `SEED_DEMO=0`). Login attempts are rate-limited (30 failures per 15 minutes per address), map-service outages are reported to the rider in plain words, and the server shuts down cleanly on redeploy.
 
 ---
 

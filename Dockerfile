@@ -11,7 +11,8 @@ FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=4000 \
-    DB_PATH=/data/swiftride.db
+    DB_PATH=/data/swiftride.db \
+    UPLOAD_DIR=/data/uploads
 COPY server/package.json server/package-lock.json ./server/
 RUN cd server && npm ci --omit=dev --no-audit --no-fund
 COPY server/ ./server/

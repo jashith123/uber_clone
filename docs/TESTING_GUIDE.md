@@ -208,7 +208,7 @@ docker compose logs -f           # watch it
 docker compose down              # stop (data stays in the swiftride-data volume)
 ```
 
-`SEED_DEMO=1` is on by default in `docker-compose.yml`, so the demo accounts exist on first boot. Set `JWT_SECRET` in a `.env` file next to `docker-compose.yml` for anything beyond local testing. The tunnel commands above work the same against the container (`--port 4000`).
+`SEED_DEMO=1` is on by default in `docker-compose.yml`, so the demo accounts exist on first boot. The session secret is generated on first boot and kept in the data volume, so nothing has to be set for local testing; put `DEMO_PASSWORD=<something private>` in a `.env` file next to `docker-compose.yml` before sharing the address. The tunnel commands above work the same against the container (`--port 4000`).
 
 ---
 

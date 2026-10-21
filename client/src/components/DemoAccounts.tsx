@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
 
 export interface DemoAccount {
   email: string;
@@ -8,16 +9,22 @@ export interface DemoAccount {
   admin?: boolean;
 }
 
-/** Every seeded account. Password is the same for all of them. */
-export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { email: 'customer@demo.com', password: 'password', label: 'Rider · Asha', role: 'customer' },
-  { email: 'rider2@demo.com', password: 'password', label: 'Rider · Rahul', role: 'customer' },
-  { email: 'admin@demo.com', password: 'password', label: 'Rider + Admin panel', role: 'customer', admin: true },
-  { email: 'driver@demo.com', password: 'password', label: 'Driver · Go (Swift Dzire)', role: 'driver' },
-  { email: 'driver2@demo.com', password: 'password', label: 'Driver · Comfort (Honda City)', role: 'driver' },
-  { email: 'driver3@demo.com', password: 'password', label: 'Driver · XL (Innova)', role: 'driver' },
-  { email: 'driver4@demo.com', password: 'password', label: 'Driver · Go (Hyundai Aura)', role: 'driver' },
+/** Every seeded account. The password is the same for all of them. */
+const SEEDED: Omit<DemoAccount, 'password'>[] = [
+  { email: 'customer@demo.com', label: 'Rider · Asha', role: 'customer' },
+  { email: 'rider2@demo.com', label: 'Rider · Rahul', role: 'customer' },
+  { email: 'admin@demo.com', label: 'Rider + Admin panel', role: 'customer', admin: true },
+  { email: 'driver@demo.com', label: 'Driver · Go (Swift Dzire)', role: 'driver' },
+  { email: 'driver2@demo.com', label: 'Driver · Comfort (Honda City)', role: 'driver' },
+  { email: 'driver3@demo.com', label: 'Driver · XL (Innova)', role: 'driver' },
+  { email: 'driver4@demo.com', label: 'Driver · Go (Hyundai Aura)', role: 'driver' },
 ];
+
+interface DemoInfo {
+  enabled: boolean;
+  /** Only sent while the server still uses the default demo password. */
+  password: string | null;
+}
 
 async function copy(text: string) {
   try {
@@ -36,12 +43,25 @@ interface Props {
 }
 
 /**
- * The demo credential list. Tapping a row fills the form; the copy buttons put
- * the email or password on the clipboard so they can be pasted anywhere.
+ * The demo credential list. Shown only when the server actually has the demo
+ * accounts; the password is shown only while it is still the default. Tapping
+ * a row fills the form; the copy buttons put the email or password on the
+ * clipboard so they can be pasted anywhere.
  */
 export default function DemoAccounts({ role, onUse }: Props) {
   const [copied, setCopied] = useState<string | null>(null);
-  const list = role ? DEMO_ACCOUNTS.filter((a) => a.role === role) : DEMO_ACCOUNTS;
+  const [info, setInfo] = useState<DemoInfo | null>(null);
+
+  useEffect(() => {
+    api<DemoInfo>('/auth/demo')
+      .then(setInfo)
+      .catch(() => setInfo({ enabled: false, password: null }));
+  }, []);
+
+  if (!info?.enabled) return null;
+  const password = info.password ?? '';
+  const accounts: DemoAccount[] = SEEDED.map((a) => ({ ...a, password }));
+  const list = role ? accounts.filter((a) => a.role === role) : accounts;
 
   const flash = async (key: string, text: string) => {
     await copy(text);
@@ -53,11 +73,23 @@ export default function DemoAccounts({ role, onUse }: Props) {
     <div className="demo-box">
       <div className="demo-head">
         <strong>Demo accounts</strong>
-        <button type="button" className="chip" onClick={() => flash('all', DEMO_ACCOUNTS.map((a) => `${a.email} / ${a.password}`).join('\n'))}>
+        <button
+          type="button"
+          className="chip"
+          onClick={() => flash('all', accounts.map((a) => (password ? `${a.email} / ${password}` : a.email)).join('\n'))}
+        >
           {copied === 'all' ? '✓ Copied' : 'Copy all'}
         </button>
       </div>
-      <p className="muted demo-note">Password for every account is <code>password</code>. Tap a row to fill the form.</p>
+      <p className="muted demo-note">
+        {password ? (
+          <>
+            Password for every account is <code>{password}</code>. Tap a row to fill the form.
+          </>
+        ) : (
+          <>Ask whoever runs this server for the demo password. Tap a row to fill the email.</>
+        )}
+      </p>
       <ul className="demo-list">
         {list.map((a) => (
           <li key={a.email}>
@@ -69,9 +101,11 @@ export default function DemoAccounts({ role, onUse }: Props) {
               <button type="button" className="chip" title="Copy the email" onClick={() => flash(`e${a.email}`, a.email)}>
                 {copied === `e${a.email}` ? '✓' : 'Email'}
               </button>
-              <button type="button" className="chip" title="Copy the password" onClick={() => flash(`p${a.email}`, a.password)}>
-                {copied === `p${a.email}` ? '✓' : 'Pass'}
-              </button>
+              {password && (
+                <button type="button" className="chip" title="Copy the password" onClick={() => flash(`p${a.email}`, password)}>
+                  {copied === `p${a.email}` ? '✓' : 'Pass'}
+                </button>
+              )}
             </span>
           </li>
         ))}

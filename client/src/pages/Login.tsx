@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { apiBase, isNativeApp, setApiBase } from '../lib/api';
+import { ApiError, apiBase, isNativeApp, setApiBase } from '../lib/api';
 import type { Role } from '../lib/types';
 import DemoAccounts from '../components/DemoAccounts';
 
@@ -18,6 +18,8 @@ function initialRole(param: string | null): Role {
   return 'customer';
 }
 
+const roleWord = (r: Role) => (r === 'driver' ? 'driver' : 'rider');
+
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
@@ -27,31 +29,49 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Set when the credentials belong to the other kind of account, so one tap
+  // can switch the tab and log in instead of retyping everything.
+  const [switchTo, setSwitchTo] = useState<Role | null>(null);
   const [busy, setBusy] = useState(false);
   const [showServer, setShowServer] = useState(isNativeApp());
   const [server, setServer] = useState(apiBase());
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function doLogin(asRole: Role) {
     setBusy(true);
     setError(null);
+    setSwitchTo(null);
     try {
       if (isNativeApp()) setApiBase(server);
       try {
-        localStorage.setItem(ROLE_KEY, role);
+        localStorage.setItem(ROLE_KEY, asRole);
       } catch {
         /* ignore */
       }
-      const user = await login(email, password, role);
+      const user = await login(email, password, asRole);
       const home = user.role === 'driver' ? '/drive' : '/ride';
-      // Only follow "next" if it belongs to this account's side of the app.
-      const allowed = next && (user.role === 'driver' ? next.startsWith('/drive') : !next.startsWith('/drive'));
-      nav(allowed ? next : home, { replace: true });
+      // Only follow "next" if it is a path on this account's side of the app.
+      const safeNext = next && /^\/[^/\\]/.test(next) ? next : null;
+      const allowed = safeNext && (user.role === 'driver' ? safeNext.startsWith('/drive') : !safeNext.startsWith('/drive'));
+      nav(allowed ? safeNext : home, { replace: true });
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as ApiError;
+      const actual = e.data?.role;
+      setSwitchTo(actual === 'driver' || actual === 'customer' ? (actual as Role) : null);
+      setError(e.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void doLogin(role);
+  }
+
+  function pick(r: Role) {
+    setRole(r);
+    setError(null);
+    setSwitchTo(null);
   }
 
   return (
@@ -59,10 +79,10 @@ export default function Login() {
       <form className="auth-card" onSubmit={submit}>
         <h1>Welcome back</h1>
         <div className="segmented">
-          <button type="button" className={role === 'customer' ? 'on' : ''} onClick={() => setRole('customer')}>
+          <button type="button" className={role === 'customer' ? 'on' : ''} onClick={() => pick('customer')}>
             I'm a rider
           </button>
-          <button type="button" className={role === 'driver' ? 'on' : ''} onClick={() => setRole('driver')}>
+          <button type="button" className={role === 'driver' ? 'on' : ''} onClick={() => pick('driver')}>
             I'm a driver
           </button>
         </div>
@@ -86,12 +106,31 @@ export default function Login() {
             Advanced: change server address
           </button>
         ))}
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className="error">
+            {error}
+            {switchTo && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-light btn-sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setRole(switchTo);
+                    void doLogin(switchTo);
+                  }}
+                >
+                  Switch to &quot;I'm a {roleWord(switchTo)}&quot; and log in
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <button className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Logging in…' : role === 'driver' ? 'Log in to drive' : 'Log in to ride'}
         </button>
         <p className="muted">
-          New here? <Link to={`/signup?role=${role}`}>Create a {role === 'driver' ? 'driver' : 'rider'} account</Link>
+          New here? <Link to={`/signup?role=${role}`}>Create a {roleWord(role)} account</Link>
         </p>
         <DemoAccounts
           role={role}

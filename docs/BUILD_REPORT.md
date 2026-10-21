@@ -1,6 +1,6 @@
 # SwiftRide — Build Report
 
-Date: 5 September 2026 (updated 21 October 2026 with phase 7: end-to-end check and fixes)
+Date: 5 September 2026 (updated 21 October 2026 with phases 7 and 8: end-to-end check, fixes, deploy readiness)
 Project: `C:\Projects\Ideas\Uber`
 Goal: an Uber-style ride-hailing app built from scratch (frontend, backend, database), with separate customer and driver accounts, working ride requests, and the key differentiator: **the customer chooses the route and the fare is calculated from the kilometres of that route.**
 
@@ -418,3 +418,43 @@ Two new tests cover the wallet guard and the cash fallback; 29 tests pass.
 - Admin "Rides today" counts by booking date while driver earnings count by completion date, so the two can differ for a ride that spans midnight.
 - Address search can list the same place twice when Nominatim returns two entries at the same coordinates (seen with "Lotus Pond").
 - The login page remembers the last role tab, which is convenient but surprised an admin login after driver testing.
+
+---
+
+## 19. Phase 8 (21 October 2026): deploy readiness
+
+Every loose end from the phase 7 check was closed, then the deployment path was audited and hardened. Verified by booting a fresh production-mode copy (`NODE_ENV=production`, empty database, `SEED_DEMO=0`) and a copy with the map services unreachable, on top of the usual tests, build and browser run.
+
+### Fixed from the phase 7 list
+
+- Admin "Rides today" now reports gross and km by completion time, the same clock the driver's earnings use, so the two agree.
+- Address search no longer lists the same place twice (Nominatim returns a node and a way for many places; the closer-than-250 m duplicate with the same name is dropped).
+- A login on the wrong tab now offers a one-tap **Switch to "I'm a driver" and log in** button instead of only an explanation.
+- The stale SOS alert from 7 September was resolved in the admin panel.
+
+### Deploy hardening
+
+| Area | Before | Now |
+| --- | --- | --- |
+| Session secret | Hard-coded dev default if `JWT_SECRET` was unset | Generated once and stored next to the database (`jwt-secret`); logged at startup in production. Tests use a throwaway |
+| CORS | `CLIENT_ORIGIN` replaced the whole list, so setting it for a website locked the phone app out | Capacitor origins are always allowed; dev origins only outside production |
+| Map services | No timeout; raw upstream text shown to the rider ("Upstream 429: …") | 10 s timeout; rider sees "The map service is busy / could not be reached, try again"; detail goes to the log; cache capped at 2000 entries |
+| Password guessing | Unlimited | 30 failed logins per 15 min per address, 20 signups per hour. Successful logins do not count, so a room of testers behind one router is fine |
+| Demo accounts | Always created with the well-known password | `DEMO_PASSWORD` / `ADMIN_PASSWORD` replace it (also for existing accounts); `SEED_DEMO=0` creates only an admin with a one-time printed password. The login page asks the server (`GET /api/auth/demo`) and hides the password once it is no longer the default |
+| Process | No shutdown handling; an unhandled rejection could take it down | SIGTERM/SIGINT close the server and database; unhandled rejections are logged, not fatal |
+| Uploads in Docker / Fly | Written inside the image, lost on redeploy | `UPLOAD_DIR=/data/uploads` on the persistent volume |
+| Nominatim policy | Generic User-Agent | Identifying User-Agent with a contact (`USER_AGENT` or `VAPID_SUBJECT`) |
+| Dependencies | 5 server advisories (1 critical in `proxy-addr`), 2 client advisories (react-router open redirect) | 0 advisories: express 4.22.3, multer 2.4.0, react-router-dom 7.18.4 (no code changes needed) |
+| Login `next` redirect | Followed any value | Only a plain in-app path is followed |
+
+`docker-compose.yml` no longer ships a weak default secret, and `render.yaml` / `fly.toml` carry the new variables. `server/.env.example` and the README configuration table document them.
+
+### Verified
+
+- 29 tests pass, the client type-checks and builds, root/server/client `npm audit` report 0 vulnerabilities.
+- Fresh production boot with `SEED_DEMO=0`: admin created with a printed password, `jwt-secret` written, login works, CORS allows `capacitor://localhost` and refuses other origins.
+- Map services unreachable: `/api/geo/routes` and `/api/geo/geocode` answer 503 with the plain-words message.
+- 31st wrong password from one address gets 429; 40 correct logins in a row are not limited.
+- Browser: demo panel reads from the server, wrong-tab login switches and lands on `/drive`, landing page still prompts logged-out visitors to log in. No console errors.
+
+One side effect to know about: generating a real secret invalidates sessions signed with the old dev default, so everyone on this laptop logs in once more.

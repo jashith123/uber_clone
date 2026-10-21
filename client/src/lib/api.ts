@@ -54,9 +54,12 @@ export function setToken(token: string | null) {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Everything else the server sent alongside `error`, e.g. the real role on a wrong-tab login. */
+  data: Record<string, unknown>;
+  constructor(status: number, message: string, data: Record<string, unknown> = {}) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -84,6 +87,6 @@ export async function api<T>(path: string, { method = 'GET', body, signal }: Opt
     throw new ApiError(0, `Cannot reach the server at ${apiBase() || window.location.origin}. Check the server address and that the PC is running "npm run serve".`);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error || res.statusText);
+  if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error || res.statusText, data as Record<string, unknown>);
   return data as T;
 }

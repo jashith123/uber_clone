@@ -1,5 +1,6 @@
 /** Seeds demo accounts so the app can be tried immediately. Safe to re-run. */
 import { db } from './db.js';
+import { config } from './config.js';
 import { hashPassword } from './auth.js';
 import { credit, getWallet } from './services/payments.js';
 
@@ -36,22 +37,33 @@ const insertDriver = db.prepare(
    VALUES (?,?,?,?,?,?,?,?,1,'approved')`,
 );
 
+// The password comes from DEMO_PASSWORD / ADMIN_PASSWORD when set, so a public
+// server need not run with the well-known default.
+const passwordFor = (d) => (d.admin ? config.adminPassword : config.demoPassword);
+const shown = (d) => (passwordFor(d) === 'password' ? 'password' : '(from environment)');
+
 for (const d of demo) {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(d.email);
   if (existing) {
     if (d.admin) db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(existing.id);
     getWallet(existing.id);
-    console.log(`skip  ${d.email} (exists)`);
+    // A password set in the environment applies to accounts that already exist too.
+    if (process.env.DEMO_PASSWORD || (d.admin && process.env.ADMIN_PASSWORD)) {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(passwordFor(d)), existing.id);
+      console.log(`reset ${d.email} password ${shown(d)}`);
+    } else {
+      console.log(`skip  ${d.email} (exists)`);
+    }
     continue;
   }
-  const r = insertUser.run(d.role, d.name, d.email, d.phone, hashPassword(d.password), d.admin ? 1 : 0);
+  const r = insertUser.run(d.role, d.name, d.email, d.phone, hashPassword(passwordFor(d)), d.admin ? 1 : 0);
   const id = Number(r.lastInsertRowid);
   getWallet(id);
   if (d.topup) credit(id, d.topup, 'topup', { note: 'Demo starting balance' });
   if (d.role === 'driver') {
     insertDriver.run(id, d.vehicle.vehicle_type, d.vehicle.make, d.vehicle.model, d.vehicle.color, d.vehicle.plate, d.location.lat, d.location.lng);
   }
-  console.log(`added ${d.role.padEnd(8)} ${d.email} / ${d.password}${d.admin ? '  (ADMIN)' : ''}`);
+  console.log(`added ${d.role.padEnd(8)} ${d.email} / ${shown(d)}${d.admin ? '  (ADMIN)' : ''}`);
 }
 
 // A surge zone that is switched off, so it is visible in the admin panel as an example.
