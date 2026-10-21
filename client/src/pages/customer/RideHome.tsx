@@ -139,6 +139,8 @@ export default function RideHome() {
         if (r.promo) setPromoCheck(r.promo);
         else setPromoCheck((prev) => (prev && !prev.ok ? prev : null));
         if (r.promo && !r.promo.ok) setPromoApplied(null);
+        // The welcome offer arrives applied by itself on a first ride.
+        if (r.promo?.ok && (r.promo as { auto?: boolean }).auto && r.promo.code) setPromoApplied(r.promo.code);
       })
       .catch((e) => id === routeReq.current && setError((e as Error).message))
       .finally(() => id === routeReq.current && setRouting(false));
@@ -446,7 +448,15 @@ export default function RideHome() {
                   {promoApplied && promoCheck?.ok ? (
                     <div className="promo-applied">
                       <span>
-                        <strong>{promoApplied}</strong> applied · you save {money(quote?.breakdown.discount ?? 0)}
+                        {promoApplied === 'FIRSTRIDE' ? (
+                          <>
+                            <strong>Welcome offer</strong> · {money(quote?.breakdown.discount ?? 0)} off your first ride, on us
+                          </>
+                        ) : (
+                          <>
+                            <strong>{promoApplied}</strong> applied · you save {money(quote?.breakdown.discount ?? 0)}
+                          </>
+                        )}
                       </span>
                       <button className="icon-btn" onClick={() => setPromoApplied(null)}>✕</button>
                     </div>

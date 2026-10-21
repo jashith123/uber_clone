@@ -132,6 +132,8 @@ driversRouter.get('/me/earnings', (req, res) => {
     withdrawable: Math.max(0, Math.round(balance * 100) / 100),
     owed: Math.max(0, Math.round(-balance * 100) / 100),
     commission_percent: config.payments.commissionPercent,
+    free_rides_total: config.incentives.freeRidesPerDriver,
+    free_rides_used: Math.min(config.incentives.freeRidesPerDriver, db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE driver_id = ? AND status = 'completed' AND payment_status = 'paid'`).get(req.user.id).n),
     payout_requested: db.prepare('SELECT payout_requested FROM driver_profiles WHERE user_id = ?').get(req.user.id)?.payout_requested ?? 0,
     ...ratingFor(req.user.id, 'driver'),
   });

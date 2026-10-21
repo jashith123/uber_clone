@@ -215,7 +215,11 @@ adminRouter.get('/company', requireOwner, (_req, res) => {
     // Money the company actually holds: top-ups, online fares and commission in, payouts out.
     cash_held: r2(companyBalance()),
     // Profit is the commission on every settled ride.
-    profit: r2(one(`SELECT COALESCE(SUM(commission),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    // Profit is the commission actually taken, minus the welcome offers the company paid for.
+    profit: r2(one(`SELECT COALESCE(SUM(commission - discount),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    commission_taken: r2(one(`SELECT COALESCE(SUM(commission),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    promotions_paid: r2(one(`SELECT COALESCE(SUM(discount),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    commission_waived: r2(one(`SELECT COALESCE(SUM(commission_waived),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
     profit_today: r2(one(`SELECT COALESCE(SUM(commission),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid' AND date(completed_at) = date('now')`).s),
     fares: r2(one(`SELECT COALESCE(SUM(fare_final),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
     rides: one(`SELECT COUNT(*) AS n FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).n,

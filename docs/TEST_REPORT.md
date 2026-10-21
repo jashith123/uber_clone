@@ -152,7 +152,23 @@ A bug found on the way: the carried fee showed at booking but was not collected 
 
 ![Vehicle drawings](screenshots/test-2026-10-21-vehicle-icons.png)
 
-## 8. Known limits
+## 8. Welcome offer and commission-free first rides
+
+Added after the sequence above, so the books were reset once more and refilled through the apps under the final rules.
+
+| Rule | How it shows |
+| --- | --- |
+| Riders: ₹50 off the first ride, applied by itself, paid by the company, never more than half the fare | Booking: "Welcome offer · ₹50 off your first ride, on us"; formula "… − ₹50 promo = ₹80.52"; receipt "Welcome offer · first ride −₹50" |
+| Drivers: first 5 rides without commission, the message from the first login | Drive screen: "Your first 5 rides are commission-free: you keep the whole fare. 0 of 5 used. After that SwiftRide keeps 10% of each fare." Earnings page: "Commission-free welcome rides · 4 left" |
+
+| # | Action (through the app) | Books afterwards |
+| --- | --- | --- |
+| 1 | Rider Rahul adds ₹100; driver Dev Car adds ₹100 | Company holds ₹200 |
+| 2 | Rahul's first ride, Sector 17 → Elante: ₹130.52 − ₹50 welcome offer = ₹80.52, "Pay with Wallet"; the wallet pays all of it and the ride closes with nothing to collect; the driver's banner moves to "1 of 5 used" | Online fares ₹80.52; promotions paid ₹50; commission waived ₹13.05; profit −₹50; owed to the driver ₹230.52 (his ₹100 plus the whole ₹130.52 fare); owed to the rider ₹19.48 |
+
+Screenshots: `test-2026-10-21-driver-free-rides.png`, `test-2026-10-21-welcome-offer.png`, `test-2026-10-21-welcome-receipt.png`. Tests: 45 pass, including the new `incentives.test.js`.
+
+## 9. Known limits
 
 - The emulator's own GPS can be slow; on a real phone the location prompt and fix are normal Android behaviour.
 - In-app calls between two different networks (mobile data on both sides) use the free Open Relay TURN server by default; for production set your own `TURN_URLS`.

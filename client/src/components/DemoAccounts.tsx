@@ -12,7 +12,7 @@ export interface DemoAccount {
 /** Every seeded account. The password is the same for all of them. */
 const SEEDED: Omit<DemoAccount, 'password'>[] = [
   { email: 'rider@demo.com', label: 'Rider · Asha', role: 'customer' },
-  { email: 'rider2@demo.com', label: 'Rider · Rahul', role: 'customer' },
+  { email: 'rider2@demo.com', label: 'Rider · Rahul (first ride: ₹50 welcome offer)', role: 'customer' },
   { email: 'owner@demo.com', label: 'Owner · company books, every account, payouts', role: 'customer', admin: true },
   { email: 'admin@demo.com', label: 'Admin · rides, users, fares, promos, SOS', role: 'customer', admin: true },
   { email: 'moto.driver@demo.com', label: 'Moto driver · Honda Activa (bike)', role: 'driver' },

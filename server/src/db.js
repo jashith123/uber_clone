@@ -76,6 +76,17 @@ function migrate(db) {
   ensureColumn('users', 'outstanding_fee', 'REAL NOT NULL DEFAULT 0'); // rider fines not yet collected; added to the next ride
   ensureColumn('rides', 'due_carried', 'REAL NOT NULL DEFAULT 0');     // outstanding fee folded into this ride
   ensureColumn('rides', 'wallet_paid', 'REAL NOT NULL DEFAULT 0');     // part of the total paid from the rider's wallet
+  ensureColumn('rides', 'commission_waived', 'REAL NOT NULL DEFAULT 0'); // commission not taken on a driver's free first rides
+  ensureColumn('promo_codes', 'first_ride_only', 'INTEGER NOT NULL DEFAULT 0'); // applied by itself on a rider's first ride
+
+  // The welcome offer: ₹50 off the first ride, applied automatically. It
+  // replaces the old WELCOME50 code so a rider cannot stack two first-ride offers.
+  db.prepare(
+    `INSERT INTO promo_codes (code, description, kind, value, max_discount, min_fare, per_user_limit, total_limit, first_ride_only)
+     VALUES ('FIRSTRIDE', 'Welcome offer: Rs 50 off your first ride', 'flat', 50, 0, 0, 1, 0, 1)
+     ON CONFLICT(code) DO UPDATE SET first_ride_only = 1`,
+  ).run();
+  db.prepare(`UPDATE promo_codes SET active = 0 WHERE code = 'WELCOME50'`).run();
 
   // Ratings are the plain average of every rating received; keep the cached
   // copy on the profile honest for databases rated under the old running sum.

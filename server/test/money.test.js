@@ -3,6 +3,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.DB_PATH = ':memory:';
+process.env.DRIVER_FREE_RIDES = '0'; // these tests check the normal commission; incentives.test.js covers the free rides
 
 const { db } = await import('../src/db.js');
 const { hashPassword } = await import('../src/auth.js');

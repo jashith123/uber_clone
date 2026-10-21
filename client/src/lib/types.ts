@@ -12,6 +12,8 @@ export interface DriverProfile {
   plate?: string | null;
   upi_id?: string | null;
   payout_requested?: number;
+  free_rides_total?: number;
+  free_rides_used?: number;
   is_online: number;
   lat?: number | null;
   lng?: number | null;

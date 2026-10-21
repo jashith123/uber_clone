@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { fetchRoutes, haversineKm as distanceKm } from './geo.js';
 import { computeFare } from './fare.js';
 import { surgeAt } from './surge.js';
-import { quotePromo, redeemPromo } from './promos.js';
+import { quotePromo, redeemPromo, autoPromoFor } from './promos.js';
 import { makePin, makeShareToken } from './safety.js';
 import { settleRide, settleCancellation, getWallet, commissionFor, round2 } from './payments.js';
 import * as dispatch from './dispatch.js';
@@ -142,6 +142,14 @@ function broadcast(rideId, event = 'ride:update') {
   return row;
 }
 
+/** Paid rides this driver has completed; the first few are commission-free. */
+export function driverPaidRides(driverId) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE driver_id = ? AND status = 'completed' AND payment_status = 'paid'`).get(driverId).n;
+}
+export function driverHasFreeRides(driverId) {
+  return driverPaidRides(driverId) < config.incentives.freeRidesPerDriver;
+}
+
 /** Could the driver end up holding cash on this ride? Card rides never; wallet rides only if the wallet is short. */
 export function mayCollectCash(ride) {
   if (ride.payment_method === 'card') return false;
@@ -166,7 +174,9 @@ export function assertWalletCovers(customerId, amount) {
  * trusted data, never from numbers the client sent.
  */
 export async function createRide(customer, body) {
-  const { waypoints, route_index = 0, vehicle_type, payment_method = 'cash', promo_code = null } = body || {};
+  const { waypoints, route_index = 0, vehicle_type, payment_method = 'cash' } = body || {};
+  // The welcome offer applies by itself on a rider's first ride.
+  const promo_code = body?.promo_code || autoPromoFor(customer);
   if (!Array.isArray(waypoints) || waypoints.length < 2) {
     throw Object.assign(new Error('waypoints must contain pickup and dropoff'), { status: 400 });
   }
@@ -285,7 +295,7 @@ export function acceptRide(driver, rideId) {
   // When the driver may end up collecting cash (the rider is not paying by
   // card, and their wallet does not cover the whole amount), the commission
   // must already be in his wallet; otherwise nothing stops him keeping it all.
-  if (target && mayCollectCash(target)) {
+  if (target && mayCollectCash(target) && !driverHasFreeRides(driver.id)) {
     const need = commissionFor(target.fare_estimate);
     const have = getWallet(driver.id).balance;
     if (have < need) {

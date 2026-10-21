@@ -36,6 +36,7 @@ export default function DriverHome() {
     heading: user?.driver?.heading ?? 0,
   }));
   const [simulate, setSimulate] = useState(false);
+  const [freeDone, setFreeDone] = useState(() => localStorage.getItem('swiftride.freeRidesDone') === '1');
   // Cash rides are only offered when the wallet covers the commission, so an
   // empty wallet quietly means no cash rides: say so.
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -209,6 +210,18 @@ export default function DriverHome() {
           </div>
         )}
 
+        {user?.driver?.free_rides_total != null && (user.driver.free_rides_used ?? 0) < user.driver.free_rides_total && (
+          <div className="ok">
+            <strong>Welcome.</strong> Your first {user.driver.free_rides_total} rides are commission-free: you keep the whole fare.
+            {' '}{user.driver.free_rides_used ?? 0} of {user.driver.free_rides_total} used. After that SwiftRide keeps 10% of each fare.
+          </div>
+        )}
+        {user?.driver?.free_rides_total != null && (user.driver.free_rides_used ?? 0) >= user.driver.free_rides_total && !freeDone && (
+          <div className="hint-bar">
+            <span>Your {user.driver.free_rides_total} commission-free rides are done. From now on SwiftRide keeps 10% of each fare.</span>
+            <button className="icon-btn" onClick={() => { localStorage.setItem('swiftride.freeRidesDone', '1'); setFreeDone(true); }}>✕</button>
+          </div>
+        )}
         {pushHint && online && (
           <div className="hint-bar">
             <span>Turn on notifications so you hear about ride offers.</span>

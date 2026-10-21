@@ -40,6 +40,12 @@ export function loadUser(id) {
       const r = db.prepare('SELECT AVG(driver_rating) AS avg, COUNT(driver_rating) AS n FROM rides WHERE driver_id = ? AND driver_rating IS NOT NULL').get(id);
       out.driver.rating = r.n ? Math.round(r.avg * 10) / 10 : null;
       out.driver.rating_count = r.n;
+      // The commission-free welcome rides, so the app can say how many are left.
+      out.driver.free_rides_total = config.incentives.freeRidesPerDriver;
+      out.driver.free_rides_used = Math.min(
+        config.incentives.freeRidesPerDriver,
+        db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE driver_id = ? AND status = 'completed' AND payment_status = 'paid'`).get(id).n,
+      );
     }
   } else {
     const r = db.prepare('SELECT AVG(customer_rating) AS avg, COUNT(customer_rating) AS n FROM rides WHERE customer_id = ? AND customer_rating IS NOT NULL').get(id);

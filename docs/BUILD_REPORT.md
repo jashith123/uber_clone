@@ -1,6 +1,6 @@
 # SwiftRide — Build Report
 
-Date: 5 September 2026 (updated 21 October 2026 with phases 7 to 10: end-to-end check, deploy readiness, owner and settlement, rider wallet, final APK)
+Date: 5 September 2026 (updated 21 October 2026 with phases 7 to 11: end-to-end check, deploy readiness, owner and settlement, rider wallet, welcome offers, final APK)
 Project: `C:\Projects\Ideas\Uber`
 Goal: an Uber-style ride-hailing app built from scratch (frontend, backend, database), with separate customer and driver accounts, working ride requests, and the key differentiator: **the customer chooses the route and the fare is calculated from the kilometres of that route.**
 
@@ -537,3 +537,25 @@ New `CarMarker` illustrations drawn in the style of ride-hailing apps: a gradien
 - Fixed: the carried fee was read from a query that did not include it, so it was shown at booking but not collected.
 
 41 tests pass. The signed APK was rebuilt with all of the above and checked on the emulator.
+
+---
+
+## 22. Phase 11 (21 October 2026): welcome offer for riders, commission-free first rides for drivers
+
+### Riders: ₹50 off the first ride
+
+- A `FIRSTRIDE` promo (flat ₹50, `first_ride_only`) applies by itself on a rider's first ride; no code to type. It is never more than half the fare (`FIRST_RIDE_MAX_PCT`), so a ₹40 Moto ride gets ₹20 off, a ₹300 ride gets ₹50. After one completed ride it is gone, and the old WELCOME50 code is switched off so two first-ride offers cannot stack.
+- The company pays for it: the driver is paid on the fare before the discount, the rider pays the discounted amount, and the difference is booked as **promotions paid** in the owner's view. Profit on the Company tab is commission taken minus promotions paid.
+- The booking screen shows "Welcome offer · ₹50 off your first ride, on us"; the receipt shows "Welcome offer · first ride −₹50".
+
+### Drivers: first 5 rides without commission
+
+- `DRIVER_FREE_RIDES` (5): a driver's first completed paid rides carry no commission; he is paid the whole fare. The waived amount is stored per ride (`commission_waived`) and totalled for the owner.
+- The Drive screen shows the message from the first login: "Your first 5 rides are commission-free: you keep the whole fare. 0 of 5 used. After that SwiftRide keeps 10% of each fare." The counter updates after every ride; when the five are done a one-time notice says the 10% now applies. The Earnings page has a "Commission-free welcome rides" card.
+- While a driver still has free rides he needs no commission float in his wallet to be offered cash rides.
+
+### Verified
+
+- `incentives.test.js`: the offer applies by itself, is capped at half the fare, applies once; the driver is paid on the gross; the first N rides have no commission and the next one does; no float needed during free rides. 45 tests in all.
+- Books reset once more, then through the apps: rider2 added ₹100, car.driver added ₹100, rider2's first ride Sector 17 → Elante: ₹130.52 − ₹50 = ₹80.52, paid entirely from the wallet, the ride closed with nothing to collect, the driver banner moved to "1 of 5 used". Owner's books afterwards: top-ups ₹200, online fares ₹80.52, promotions paid ₹50, commission waived ₹13.05, profit −₹50, owed to the driver ₹230.52 (his ₹100 plus the whole ₹130.52 fare), owed to the rider ₹19.48.
+- APK rebuilt with all of it.

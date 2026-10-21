@@ -24,6 +24,8 @@ interface Earnings {
   owed: number;
   commission_percent: number;
   payout_requested: number;
+  free_rides_total: number;
+  free_rides_used: number;
   rating: number | null;
   rating_count: number;
 }
@@ -88,6 +90,11 @@ export default function DriverEarnings() {
           <span>
             {a?.rides ?? 0} trips · {km(a?.km ?? 0)}
           </span>
+        </div>
+        <div className="card stat">
+          <small>Commission-free welcome rides</small>
+          <strong>{earnings ? `${Math.max(0, earnings.free_rides_total - earnings.free_rides_used)} left` : '—'}</strong>
+          <span>{earnings ? `${earnings.free_rides_used} of ${earnings.free_rides_total} used; after that ${pct}% commission applies` : ''}</span>
         </div>
         <div className="card stat">
           <small>Your rating</small>

@@ -18,7 +18,7 @@
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { getWallet, commissionFor } from './payments.js';
-import { mayCollectCash } from './rides.js';
+import { mayCollectCash, driverHasFreeRides } from './rides.js';
 
 const timers = new Map(); // rideId -> Timeout
 
@@ -97,7 +97,7 @@ export function startDispatch(rideId, wave = 1) {
     .all(ride.vehicle_type, rideId)
     // A cash fare is collected by the driver, so only drivers whose wallet
     // already covers the commission are offered it.
-    .filter((d) => !mayCollectCash(ride) || getWallet(d.user_id).balance >= commissionFor(ride.fare_estimate))
+    .filter((d) => !mayCollectCash(ride) || driverHasFreeRides(d.user_id) || getWallet(d.user_id).balance >= commissionFor(ride.fare_estimate))
     .map((d) => ({ ...d, distance_km: haversineKm(pickup, d) }))
     .filter((d) => d.distance_km <= radius)
     // nearest first, but a driver who accepts more often breaks ties

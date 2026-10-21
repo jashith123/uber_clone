@@ -295,7 +295,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
           />
           <Row label="Booking fee" value={money(ride.fare_breakdown.booking_fee, ride.currency)} />
           {ride.fare_breakdown.min_fare_applied && <Row label="Minimum fare applied" value={money(ride.fare_breakdown.min_fare, ride.currency)} />}
-          {ride.discount > 0 && <Row label={`Promo ${ride.promo_code || ''}`} value={signed(-ride.discount, ride.currency)} signedValue />}
+          {ride.discount > 0 && <Row label={ride.promo_code === 'FIRSTRIDE' ? 'Welcome offer · first ride' : `Promo ${ride.promo_code || ''}`} value={signed(-ride.discount, ride.currency)} signedValue />}
           {ride.due_carried > 0 && <Row label="Cancellation fee from an earlier ride" value={money(ride.due_carried, ride.currency)} />}
           <Row
             label={perspective === 'customer' ? 'You paid' : 'Collected in total'}

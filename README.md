@@ -330,6 +330,8 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `OWNER_EMAILS` | `owner@demo.com` | Accounts that get the Company tab: books, every wallet, driver payouts |
 | `ARRIVAL_RADIUS_KM` | `1` | How close the driver must be before "I've arrived" counts |
 | `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` | Open Relay | Relay for in-app calls between different networks; set your own for production |
+| `FIRST_RIDE_OFF` / `FIRST_RIDE_MAX_PCT` | `50` / `50` | Welcome offer: ₹50 off a rider's first ride, applied by itself, paid by the company, never more than half the fare |
+| `DRIVER_FREE_RIDES` | `5` | A driver keeps 100% of this many first rides; the app shows the count and when the 10% starts |
 
 **Riders pay from a wallet:** money added in Wallet pays rides automatically when they end and covers as much as it holds; the rest is paid at the destination on the company UPI QR or to the driver, who confirms. The wallet never goes negative; a late-cancellation fee it cannot cover rides along to the next trip. The owner can wipe all rides and transactions with the Company tab button or `node scripts/reset-demo.mjs` (run in `server/`).
 

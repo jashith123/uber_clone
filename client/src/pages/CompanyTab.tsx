@@ -41,6 +41,9 @@ interface Books {
   cash_held: number;
   profit: number;
   profit_today: number;
+  commission_taken: number;
+  promotions_paid: number;
+  commission_waived: number;
   fares: number;
   rides: number;
   collected_online: number;
@@ -110,7 +113,8 @@ export default function CompanyTab() {
       </p>
 
       <div className="stat-grid">
-        <div className="card stat"><small>Profit · all commission</small><strong className={signedClass(books.profit)}>{money(books.profit)}</strong><span>{money(books.profit_today)} today · {books.rides} paid rides · {money(books.fares)} in fares</span></div>
+        <div className="card stat"><small>Profit · commission taken minus welcome offers</small><strong className={signedClass(books.profit)}>{signed(books.profit)}</strong><span>{money(books.commission_taken)} commission − {money(books.promotions_paid)} first-ride offers · {books.rides} paid rides · {money(books.fares)} in fares</span></div>
+        <div className="card stat"><small>Commission waived · drivers' first rides</small><strong>{money(books.commission_waived)}</strong><span>what each driver's first rides would have paid in commission</span></div>
         <div className="card stat"><small>Cash the company holds</small><strong>{money(books.cash_held)}</strong><span>top-ups {money(books.topups)} + online fares {money(books.collected_online)} + commission {money(books.commission_from_drivers)} − paid out {money(books.paid_out)}</span></div>
         <div className="card stat"><small>Owed to drivers</small><strong className="amt-neg">{money(books.owed_to_drivers)}</strong><span>positive driver wallets, paid out below</span></div>
         <div className="card stat"><small>Owed by drivers</small><strong className="amt-pos">{money(books.owed_by_drivers)}</strong><span>negative wallets: commission still due</span></div>

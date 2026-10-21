@@ -5,7 +5,7 @@ import { geocode, reverseGeocode, fetchRoutes } from '../services/geo.js';
 import { quoteAll } from '../services/fare.js';
 import { suggestPlaces } from '../services/places.js';
 import { surgeAt } from '../services/surge.js';
-import { quotePromo, listPromos } from '../services/promos.js';
+import { quotePromo, listPromos, autoPromoFor } from '../services/promos.js';
 
 export const geoRouter = Router();
 
@@ -57,7 +57,10 @@ geoRouter.get('/reverse', requireAuth, async (req, res, next) => {
  */
 geoRouter.post('/routes', requireAuth, async (req, res, next) => {
   try {
-    const { waypoints, promo_code } = req.body || {};
+    const { waypoints } = req.body || {};
+    // No code typed: the welcome offer applies by itself on a rider's first ride.
+    const auto = !req.body?.promo_code ? autoPromoFor(req.user) : null;
+    const promo_code = req.body?.promo_code || auto;
     if (!Array.isArray(waypoints) || waypoints.length < 2 || waypoints.length > 8) {
       return res.status(400).json({ error: 'Provide between 2 and 8 waypoints' });
     }
@@ -91,7 +94,7 @@ geoRouter.post('/routes', requireAuth, async (req, res, next) => {
             base.discount = q.discount;
             base.promoCode = q.code;
           }
-          if (!promo || (q.ok && !promo.ok)) promo = { ok: q.ok, code: q.code, description: q.description, reason: q.reason };
+          if (!promo || (q.ok && !promo.ok)) promo = { ok: q.ok, code: q.code, description: q.description, reason: q.reason, auto: Boolean(auto) };
         }
         opts[p.vehicle_type] = base;
       }

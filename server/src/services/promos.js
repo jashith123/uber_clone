@@ -1,5 +1,6 @@
 /** Promo codes: validation, discount maths and redemption. */
 import { db } from '../db.js';
+import { config } from '../config.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -9,9 +10,18 @@ const stmts = {
   redeem: db.prepare('INSERT INTO promo_redemptions (code, user_id, ride_id, discount) VALUES (?,?,?,?)'),
   bump: db.prepare('UPDATE promo_codes SET used_count = used_count + 1 WHERE code = ? COLLATE NOCASE'),
   listActive: db.prepare(`SELECT code, description, kind, value, max_discount, min_fare, per_user_limit, total_limit, used_count FROM promo_codes
-                          WHERE active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))
+                          WHERE active = 1 AND first_ride_only = 0 AND (expires_at IS NULL OR expires_at > datetime('now'))
                           ORDER BY value DESC`),
+  completedRides: db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE customer_id = ? AND status = 'completed'`),
+  firstRideCode: db.prepare(`SELECT code FROM promo_codes WHERE first_ride_only = 1 AND active = 1 ORDER BY value DESC LIMIT 1`),
 };
+
+/** The welcome offer's code when this rider has never completed a ride, else null. */
+export function autoPromoFor(user) {
+  if (!user) return null;
+  if (stmts.completedRides.get(user.id).n > 0) return null;
+  return stmts.firstRideCode.get()?.code ?? null;
+}
 
 /**
  * Codes the rider can still use. Fully-used codes and ones this rider has
@@ -48,9 +58,14 @@ export function quotePromo(user, rawCode, fare) {
   if (used >= p.per_user_limit) {
     return { ok: false, reason: 'You have already used this code', discount: 0 };
   }
+  if (p.first_ride_only && stmts.completedRides.get(user.id).n > 0) {
+    return { ok: false, reason: 'The welcome offer is only for your first ride', discount: 0 };
+  }
 
   let discount = p.kind === 'percent' ? (fare * p.value) / 100 : p.value;
   if (p.max_discount > 0) discount = Math.min(discount, p.max_discount);
+  // The welcome offer is "₹50 according to the ride": never more than half of it.
+  if (p.first_ride_only) discount = Math.min(discount, (fare * config.incentives.firstRideMaxPct) / 100);
   discount = round2(Math.min(discount, fare)); // never below zero fare
 
   return { ok: true, code: p.code, discount, description: p.description };

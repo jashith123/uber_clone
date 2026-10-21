@@ -101,11 +101,18 @@ export const debit = (userId, amount, type, opts = {}) => credit(userId, -Math.a
  * driver still owes commission, so it is deducted from their balance.
  */
 export function settleRide(ride, collectedVia = null) {
-  const fare = round2(ride.fare_final ?? ride.fare_estimate);
+  const fare = round2(ride.fare_final ?? ride.fare_estimate); // what the rider pays
   const due = round2(ride.due_carried || 0); // a cancellation fee the rider still owed
   const total = round2(fare + due);
-  const commission = commissionFor(fare);
-  const driverShare = round2(fare - commission);
+  // The driver is paid on the fare before any welcome offer: the company, not
+  // the driver, pays for the rider's discount.
+  const gross = round2(fare + (ride.discount || 0));
+  // A driver's first rides are commission-free (DRIVER_FREE_RIDES).
+  const paidBefore = db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE driver_id = ? AND status = 'completed' AND payment_status = 'paid' AND id <> ?`).get(ride.driver_id, ride.id).n;
+  const freeRide = paidBefore < config.incentives.freeRidesPerDriver;
+  const fullCommission = commissionFor(gross);
+  const commission = freeRide ? 0 : fullCommission;
+  const driverShare = round2(gross - commission);
   const pct = config.payments.commissionPercent;
 
   // The rider's wallet paid first (worked out when the car reached the
@@ -132,7 +139,7 @@ export function settleRide(ride, collectedVia = null) {
   if (movement > 0) {
     credit(ride.driver_id, movement, 'ride_earning', {
       rideId: ride.id,
-      note: `Ride #${ride.id}: your ${100 - pct}% share${cashInHand ? ` less ₹${cashInHand.toFixed(2)} collected in hand` : ''}`,
+      note: `Ride #${ride.id}: ${freeRide ? 'the whole fare (commission-free ride)' : `your ${100 - pct}% share`}${cashInHand ? ` less ₹${cashInHand.toFixed(2)} collected in hand` : ''}`,
     });
   } else if (movement < 0) {
     // He collected more than his share in cash: the commission (and any fee the
@@ -143,8 +150,10 @@ export function settleRide(ride, collectedVia = null) {
     if (round2(-movement - feePart) > 0) companyEntry(round2(-movement - feePart), 'commission', { rideId: ride.id, userId: ride.driver_id, note: `Commission on ride #${ride.id}` });
   }
   if (due > 0) db.prepare('UPDATE users SET outstanding_fee = MAX(0, ROUND(outstanding_fee - ?, 2)) WHERE id = ?').run(due, ride.customer_id);
-  db.prepare(`UPDATE rides SET payment_status = 'paid', collected_via = ?, commission = ?, driver_share = ? WHERE id = ?`).run(via, commission, driverShare, ride.id);
-  return { total, fare, due, walletPaid, remainder, commission, driverShare, via };
+  db.prepare(`UPDATE rides SET payment_status = 'paid', collected_via = ?, commission = ?, driver_share = ?, commission_waived = ? WHERE id = ?`).run(
+    via, commission, driverShare, freeRide ? fullCommission : 0, ride.id,
+  );
+  return { total, fare, due, walletPaid, remainder, commission, driverShare, via, freeRide };
 }
 
 /**

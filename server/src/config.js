@@ -117,6 +117,14 @@ export const config = {
   // The owner sees the company's books: cash held, profit, every account and
   // wallet, and pays drivers out. Owners are admins too.
   ownerEmails: (process.env.OWNER_EMAILS || 'owner@demo.com').split(',').map((s) => s.trim().toLowerCase()),
+  // Trust-building offers: riders get a flat amount off their first ride (never
+  // more than half the fare; the company pays it), drivers keep 100% of their
+  // first few fares before the commission starts.
+  incentives: {
+    firstRideOff: Number(process.env.FIRST_RIDE_OFF || 50),
+    firstRideMaxPct: Number(process.env.FIRST_RIDE_MAX_PCT || 50),
+    freeRidesPerDriver: Number(process.env.DRIVER_FREE_RIDES || 5),
+  },
   company: {
     name: process.env.COMPANY_NAME || 'SwiftRide',
     // The UPI ID behind the company QR that riders pay at the end of a cash ride.
