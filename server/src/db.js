@@ -10,9 +10,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // cancel_fee is what a customer pays for cancelling late (after the grace period or after arrival).
 export const DEFAULT_PRICING = [
   { vehicle_type: 'bike',    label: 'Moto',    description: 'Affordable motorbike rides',       seats: 1, base_fare: 15, per_km: 6,  per_min: 0.5, min_fare: 25,  booking_fee: 2,  cancel_fee: 10, sort_order: 0 },
-  { vehicle_type: 'economy', label: 'Go',      description: 'Affordable everyday rides',         seats: 4, base_fare: 30, per_km: 12, per_min: 1,   min_fare: 50,  booking_fee: 5,  cancel_fee: 30, sort_order: 1 },
-  { vehicle_type: 'comfort', label: 'Comfort', description: 'Newer cars with extra legroom',     seats: 4, base_fare: 50, per_km: 16, per_min: 1.5, min_fare: 80,  booking_fee: 8,  cancel_fee: 40, sort_order: 2 },
-  { vehicle_type: 'xl',      label: 'XL',      description: 'SUVs and vans for groups up to 6',  seats: 6, base_fare: 70, per_km: 22, per_min: 2,   min_fare: 120, booking_fee: 10, cancel_fee: 50, sort_order: 3 },
+  { vehicle_type: 'auto',    label: 'Auto',    description: 'Three-wheeler auto rickshaw',       seats: 3, base_fare: 25, per_km: 9,  per_min: 0.75, min_fare: 35, booking_fee: 3,  cancel_fee: 15, sort_order: 1 },
+  { vehicle_type: 'economy', label: 'Go',      description: 'Affordable everyday car rides',     seats: 4, base_fare: 30, per_km: 12, per_min: 1,   min_fare: 50,  booking_fee: 5,  cancel_fee: 30, sort_order: 2 },
+  { vehicle_type: 'comfort', label: 'Comfort', description: 'Newer cars with extra legroom',     seats: 4, base_fare: 50, per_km: 16, per_min: 1.5, min_fare: 80,  booking_fee: 8,  cancel_fee: 40, sort_order: 3 },
+  { vehicle_type: 'xl',      label: 'XL',      description: 'SUVs and vans for groups up to 6',  seats: 6, base_fare: 70, per_km: 22, per_min: 2,   min_fare: 120, booking_fee: 10, cancel_fee: 50, sort_order: 4 },
 ];
 
 export const DEFAULT_PROMOS = [
@@ -61,6 +62,24 @@ function migrate(db) {
   ensureColumn('driver_profiles', 'offers_seen', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('driver_profiles', 'offers_taken', 'INTEGER NOT NULL DEFAULT 0');
 
+  ensureColumn('ride_messages', 'kind', "TEXT NOT NULL DEFAULT 'text'"); // text | call
+
+  // Settlement: how the fare was collected and how it was split.
+  ensureColumn('rides', 'collected_via', 'TEXT');            // wallet | card | company_qr | driver
+  ensureColumn('rides', 'commission', 'REAL NOT NULL DEFAULT 0');
+  ensureColumn('rides', 'driver_share', 'REAL NOT NULL DEFAULT 0');
+  ensureColumn('rides', 'dropped_at', 'TEXT');               // reached the destination; fare being collected
+  ensureColumn('driver_profiles', 'upi_id', 'TEXT');
+  ensureColumn('driver_profiles', 'payout_requested', 'REAL NOT NULL DEFAULT 0');
+  ensureColumn('driver_profiles', 'payout_requested_at', 'TEXT');
+  ensureColumn('users', 'is_owner', 'INTEGER NOT NULL DEFAULT 0');
+
+  // Ratings are the plain average of every rating received; keep the cached
+  // copy on the profile honest for databases rated under the old running sum.
+  db.exec(`UPDATE driver_profiles SET
+    rating = COALESCE((SELECT AVG(driver_rating) FROM rides WHERE rides.driver_id = driver_profiles.user_id AND driver_rating IS NOT NULL), 5),
+    rating_count = (SELECT COUNT(driver_rating) FROM rides WHERE rides.driver_id = driver_profiles.user_id AND driver_rating IS NOT NULL)`);
+
   // Backfill share tokens / PINs for rides created before those columns existed.
   const stale = db.prepare(`SELECT id FROM rides WHERE share_token IS NULL`).all();
   if (stale.length) {
@@ -83,6 +102,9 @@ function seedPricing(db) {
   for (const p of DEFAULT_PRICING) {
     upsert.run(p.vehicle_type, p.label, p.description, p.seats, p.base_fare, p.per_km, p.per_min, p.min_fare, p.booking_fee, p.cancel_fee, 'INR', p.sort_order);
   }
+  // Keep the class order stable when a class is added later (Auto came after Go).
+  const order = db.prepare('UPDATE pricing SET sort_order = ? WHERE vehicle_type = ?');
+  for (const p of DEFAULT_PRICING) order.run(p.sort_order, p.vehicle_type);
 }
 
 function seedPromos(db) {

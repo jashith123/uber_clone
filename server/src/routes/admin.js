@@ -1,11 +1,12 @@
 /** Admin panel API. Every route needs a user with is_admin = 1. */
 import { Router } from 'express';
 import { db } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireOwner } from '../auth.js';
+import { config } from '../config.js';
 import { listSos, resolveSos } from '../services/safety.js';
 import { listZones, upsertZone, deleteZone } from '../services/surge.js';
 import { offersForRide } from '../services/dispatch.js';
-import { credit } from '../services/payments.js';
+import { credit, companyBalance, companyLedger, companyTotal, payDriver } from '../services/payments.js';
 
 export const adminRouter = Router();
 
@@ -197,6 +198,60 @@ adminRouter.get('/sos', (req, res) => res.json({ alerts: listSos({ all: req.quer
 adminRouter.post('/sos/:id/resolve', (req, res, next) => {
   try {
     res.json({ alert: resolveSos(req.user, Number(req.params.id), req.body?.status || 'resolved') });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ----------------------------------------------------------------- owner ----
+// The company's books: what it holds, what it earned, what it owes drivers and
+// riders, every account with its wallet, and driver payouts. Owner only.
+adminRouter.get('/company', requireOwner, (_req, res) => {
+  const one = (sql, ...a) => db.prepare(sql).get(...a);
+  const r2 = (n) => Math.round(n * 100) / 100;
+  res.json({
+    company: { name: config.company.name, upi_id: config.company.upiId, commission_percent: config.payments.commissionPercent },
+    // Money the company actually holds: top-ups, online fares and commission in, payouts out.
+    cash_held: r2(companyBalance()),
+    // Profit is the commission on every settled ride.
+    profit: r2(one(`SELECT COALESCE(SUM(commission),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    profit_today: r2(one(`SELECT COALESCE(SUM(commission),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid' AND date(completed_at) = date('now')`).s),
+    fares: r2(one(`SELECT COALESCE(SUM(fare_final),0) AS s FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).s),
+    rides: one(`SELECT COUNT(*) AS n FROM rides WHERE status = 'completed' AND payment_status = 'paid'`).n,
+    collected_online: companyTotal('collection'),
+    commission_from_drivers: companyTotal('commission'),
+    topups: companyTotal('topup'),
+    paid_out: r2(-companyTotal('driver_payout')),
+    owed_to_drivers: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance > 0`).s),
+    owed_by_drivers: r2(-one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance < 0`).s),
+    owed_to_riders: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'customer' AND w.balance > 0`).s),
+    payout_requests: db
+      .prepare(
+        `SELECT u.id, u.name, p.payout_requested AS amount, p.payout_requested_at AS at, COALESCE(w.balance,0) AS balance
+         FROM driver_profiles p JOIN users u ON u.id = p.user_id LEFT JOIN wallets w ON w.user_id = u.id
+         WHERE p.payout_requested > 0 ORDER BY p.payout_requested_at`,
+      )
+      .all(),
+    ledger: companyLedger(50),
+    accounts: db
+      .prepare(
+        `SELECT u.id, u.role, u.name, u.email, u.phone, u.is_admin, u.is_owner, u.is_blocked, u.created_at,
+                p.vehicle_type, p.plate, p.approval_status, p.is_online, p.upi_id, p.payout_requested,
+                COALESCE(w.balance,0) AS balance,
+                (SELECT COUNT(*) FROM rides r WHERE (r.customer_id = u.id OR r.driver_id = u.id) AND r.status = 'completed') AS rides,
+                (SELECT COALESCE(SUM(fare_final),0) FROM rides r WHERE r.driver_id = u.id AND r.status = 'completed' AND r.payment_status = 'paid') AS fares,
+                (SELECT COALESCE(SUM(commission),0) FROM rides r WHERE r.driver_id = u.id AND r.status = 'completed' AND r.payment_status = 'paid') AS commission,
+                (SELECT COALESCE(SUM(fare_final),0) FROM rides r WHERE r.customer_id = u.id AND r.status = 'completed' AND r.payment_status = 'paid') AS spent
+         FROM users u LEFT JOIN driver_profiles p ON p.user_id = u.id LEFT JOIN wallets w ON w.user_id = u.id
+         ORDER BY u.role, u.id`,
+      )
+      .all(),
+  });
+});
+
+adminRouter.post('/drivers/:id/payout', requireOwner, (req, res, next) => {
+  try {
+    res.json({ wallet: payDriver(Number(req.params.id), req.body?.amount, req.body?.note) });
   } catch (e) {
     next(e);
   }

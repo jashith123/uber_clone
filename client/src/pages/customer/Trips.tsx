@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { STATUS_LABEL, formatDate, km, rideLedger, shortAddress, signed, signedClass } from '../../lib/format';
 import type { Ride } from '../../lib/types';
 
 export default function Trips() {
+  const { user } = useAuth();
   const [rides, setRides] = useState<Ride[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [stars, setStars] = useState(0);
@@ -44,6 +46,11 @@ export default function Trips() {
             <small>Total spent</small>
             <strong className={signedClass(total)}>{signed(total)}</strong>
             <span>{rides.filter((r) => r.status === 'completed').length} completed trips</span>
+          </div>
+          <div className="card stat">
+            <small>Your rating</small>
+            <strong>{user?.rating != null ? `★ ${user.rating.toFixed(1)}` : 'New'}</strong>
+            <span>{user?.rating_count ? `average of ${user.rating_count} driver rating${user.rating_count === 1 ? '' : 's'}` : 'no ratings yet'}</span>
           </div>
           <div className="card stat">
             <small>Cancellation fees</small>

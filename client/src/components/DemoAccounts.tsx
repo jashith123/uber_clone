@@ -11,13 +11,16 @@ export interface DemoAccount {
 
 /** Every seeded account. The password is the same for all of them. */
 const SEEDED: Omit<DemoAccount, 'password'>[] = [
-  { email: 'customer@demo.com', label: 'Rider · Asha', role: 'customer' },
+  { email: 'rider@demo.com', label: 'Rider · Asha', role: 'customer' },
   { email: 'rider2@demo.com', label: 'Rider · Rahul', role: 'customer' },
-  { email: 'admin@demo.com', label: 'Rider + Admin panel', role: 'customer', admin: true },
-  { email: 'driver@demo.com', label: 'Driver · Go (Swift Dzire)', role: 'driver' },
-  { email: 'driver2@demo.com', label: 'Driver · Comfort (Honda City)', role: 'driver' },
-  { email: 'driver3@demo.com', label: 'Driver · XL (Innova)', role: 'driver' },
-  { email: 'driver4@demo.com', label: 'Driver · Go (Hyundai Aura)', role: 'driver' },
+  { email: 'owner@demo.com', label: 'Owner · company books, every account, payouts', role: 'customer', admin: true },
+  { email: 'admin@demo.com', label: 'Admin · rides, users, fares, promos, SOS', role: 'customer', admin: true },
+  { email: 'moto.driver@demo.com', label: 'Moto driver · Honda Activa (bike)', role: 'driver' },
+  { email: 'auto.driver@demo.com', label: 'Auto driver · Bajaj RE (3-wheeler)', role: 'driver' },
+  { email: 'car.driver@demo.com', label: 'Car driver · Go · Maruti Swift Dzire', role: 'driver' },
+  { email: 'car2.driver@demo.com', label: 'Car driver · Go · Hyundai Aura', role: 'driver' },
+  { email: 'comfort.driver@demo.com', label: 'Comfort driver · Honda City', role: 'driver' },
+  { email: 'suv.driver@demo.com', label: 'SUV driver · XL · Toyota Innova', role: 'driver' },
 ];
 
 interface DemoInfo {

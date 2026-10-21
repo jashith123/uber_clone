@@ -10,11 +10,14 @@ export interface DriverProfile {
   vehicle_model?: string | null;
   vehicle_color?: string | null;
   plate?: string | null;
+  upi_id?: string | null;
+  payout_requested?: number;
   is_online: number;
   lat?: number | null;
   lng?: number | null;
   heading?: number | null;
-  rating: number;
+  /** Average of every rating received; null until the first one. */
+  rating: number | null;
   rating_count: number;
 }
 
@@ -26,7 +29,11 @@ export interface User {
   phone?: string | null;
   created_at: string;
   is_admin?: number;
+  is_owner?: number;
   is_blocked?: number;
+  /** Riders: average of the ratings drivers gave them; null until the first one. */
+  rating?: number | null;
+  rating_count?: number;
   driver?: DriverProfile | null;
 }
 
@@ -95,7 +102,9 @@ export interface RideDriver {
   vehicle_type?: string;
   vehicle?: string | null;
   plate?: string | null;
-  rating: number;
+  rating: number | null;
+  rating_count?: number;
+  upi_id?: string | null;
   lat?: number | null;
   lng?: number | null;
   heading?: number | null;
@@ -134,8 +143,14 @@ export interface Ride {
   surge_multiplier: number;
   promo_code: string | null;
   discount: number;
-  payment_status: 'pending' | 'paid' | 'failed';
   driver_eta_min: number | null;
+  /** pending until settled; 'collecting' while a cash fare is being paid at the destination. */
+  payment_status: 'pending' | 'collecting' | 'paid' | 'failed';
+  collected_via: 'wallet' | 'card' | 'company_qr' | 'driver' | null;
+  commission: number;
+  driver_share: number;
+  dropped_at: string | null;
+  company?: { name: string; upi_id: string; commission_percent: number };
   dispatch_state: 'idle' | 'searching' | 'no_drivers';
   customer_rating: number | null;
   driver_rating: number | null;
@@ -145,7 +160,7 @@ export interface Ride {
   started_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
-  customer: { id: number; name: string; phone?: string | null } | null;
+  customer: { id: number; name: string; phone?: string | null; rating?: number | null; rating_count?: number } | null;
   driver: RideDriver | null;
   pickup_distance_km?: number;
 }

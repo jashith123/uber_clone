@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
+import { useAuth } from '../lib/auth';
+import CompanyTab from './CompanyTab';
 import { STATUS_LABEL, formatDate, km, money, signedClass, timeAgo } from '../lib/format';
 import type { AdminStats, AdminUser, Pricing, Promo, Ride, SosAlert, SurgeZone } from '../lib/types';
 
-type Tab = 'overview' | 'rides' | 'users' | 'drivers' | 'fares' | 'promos' | 'surge' | 'safety';
+type Tab = 'company' | 'overview' | 'rides' | 'users' | 'drivers' | 'fares' | 'promos' | 'surge' | 'safety';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'company', label: 'Company' }, // owner only
   { id: 'overview', label: 'Overview' },
   { id: 'rides', label: 'Rides' },
   { id: 'users', label: 'Users' },
@@ -31,7 +34,9 @@ interface PendingDriver {
 }
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>('overview');
+  const { user } = useAuth();
+  const isOwner = Boolean(user?.is_owner);
+  const [tab, setTab] = useState<Tab>(user?.is_owner ? 'company' : 'overview');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +63,7 @@ export default function Admin() {
       {error && <div className="error">{error}</div>}
 
       <nav className="tab-row">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.id !== 'company' || isOwner).map((t) => (
           <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
             {t.label}
             {t.id === 'drivers' && stats?.pending_approvals ? <span className="pill">{stats.pending_approvals}</span> : null}
@@ -67,6 +72,7 @@ export default function Admin() {
         ))}
       </nav>
 
+      {tab === 'company' && isOwner && <CompanyTab />}
       {tab === 'overview' && <Overview stats={stats} />}
       {tab === 'rides' && <Rides />}
       {tab === 'users' && <Users />}
@@ -392,7 +398,7 @@ function Promos() {
 
 function Surge() {
   const [zones, setZones] = useState<SurgeZone[]>([]);
-  const [form, setForm] = useState({ name: '', lat: 28.6139, lng: 77.209, radius_km: 3, multiplier: 1.5, active: 1 });
+  const [form, setForm] = useState({ name: '', lat: 30.741, lng: 76.7822, radius_km: 3, multiplier: 1.5, active: 1 });
   const load = useCallback(() => {
     api<{ zones: SurgeZone[] }>('/admin/surge').then((r) => setZones(r.zones)).catch(() => {});
   }, []);

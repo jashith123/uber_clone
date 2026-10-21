@@ -74,7 +74,7 @@ export const config = {
     provider: process.env.PAYMENT_PROVIDER || 'mock', // mock | razorpay
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
-    commissionPercent: Number(process.env.COMMISSION_PERCENT || 15), // platform's cut of each fare
+    commissionPercent: Number(process.env.COMMISSION_PERCENT || 10), // platform's cut of each fare; the rest is the driver's
   },
 
   // ---- web push (free; keys are generated locally, see npm run push:keys) ----
@@ -88,11 +88,38 @@ export const config = {
   // wait for admin approval before they can go online.
   requireDriverApproval: bool(process.env.REQUIRE_DRIVER_APPROVAL, false),
 
+  // "I've arrived" only counts within this distance of the pickup, judged from
+  // the driver's last reported position, which must be no older than this.
+  arrivalRadiusKm: Number(process.env.ARRIVAL_RADIUS_KM || 1),
+  locationMaxAgeMin: Number(process.env.LOCATION_MAX_AGE_MIN || 10),
+
+  // In-app calls. STUN finds a direct path; a TURN relay is needed when the two
+  // phones are on different networks (mobile data). Open Relay is a free public
+  // relay for demos; point TURN_URLS at your own server for production, or set
+  // TURN_URLS to an empty string to use STUN only.
+  ice: {
+    stun: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302').split(',').map((s) => s.trim()).filter(Boolean),
+    turnUrls: (process.env.TURN_URLS ?? 'turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turn:openrelay.metered.ca:443?transport=tcp')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    turnUsername: process.env.TURN_USERNAME ?? 'openrelayproject',
+    turnCredential: process.env.TURN_CREDENTIAL ?? 'openrelayproject',
+  },
+
   // Demo accounts: created on an empty database unless SEED_DEMO=0. Set
   // DEMO_PASSWORD (and ADMIN_PASSWORD) on a public server; the login page
   // stops printing the password as soon as it is no longer the default.
   seedDemo: bool(process.env.SEED_DEMO, true),
   demoPassword: process.env.DEMO_PASSWORD || 'password',
   adminPassword: process.env.ADMIN_PASSWORD || process.env.DEMO_PASSWORD || 'password',
-  adminEmails: (process.env.ADMIN_EMAILS || 'admin@demo.com').split(',').map((s) => s.trim().toLowerCase()),
+  adminEmails: (process.env.ADMIN_EMAILS || 'admin@demo.com,owner@demo.com').split(',').map((s) => s.trim().toLowerCase()),
+  // The owner sees the company's books: cash held, profit, every account and
+  // wallet, and pays drivers out. Owners are admins too.
+  ownerEmails: (process.env.OWNER_EMAILS || 'owner@demo.com').split(',').map((s) => s.trim().toLowerCase()),
+  company: {
+    name: process.env.COMPANY_NAME || 'SwiftRide',
+    // The UPI ID behind the company QR that riders pay at the end of a cash ride.
+    upiId: process.env.COMPANY_UPI_ID || 'swiftride@upi',
+  },
 };

@@ -2,38 +2,50 @@
  * Place suggestions that appear before and while the user types:
  *   recent  – places this user has used (pickups / drop-offs), most used first
  *   popular – places everyone uses, most used first
- *   common  – well-known landmarks (seeded for Delhi NCR; extend per city)
+ *   common  – well-known landmarks (seeded for the Chandigarh tricity: Chandigarh,
+ *             Mohali, Zirakpur and Panchkula; extend per city)
  * Filtering is done here so one character is enough to narrow the list.
  */
 import { db } from '../db.js';
 
 export const COMMON_PLACES = [
-  { name: 'Indira Gandhi International Airport (T3)', label: 'IGI Airport Terminal 3, New Delhi', lat: 28.5562, lng: 77.1 },
-  { name: 'IGI Airport Terminal 1', label: 'Domestic Terminal 1, New Delhi', lat: 28.5665, lng: 77.1124 },
-  { name: 'New Delhi Railway Station', label: 'Paharganj side, New Delhi', lat: 28.6431, lng: 77.2197 },
-  { name: 'Connaught Place', label: 'Rajiv Chowk, New Delhi', lat: 28.6315, lng: 77.2167 },
-  { name: 'India Gate', label: 'Kartavya Path, New Delhi', lat: 28.6129, lng: 77.2295 },
-  { name: 'Hauz Khas Village', label: 'South Delhi', lat: 28.5535, lng: 77.1935 },
-  { name: 'Select Citywalk, Saket', label: 'Saket District Centre, New Delhi', lat: 28.5286, lng: 77.2191 },
-  { name: 'AIIMS', label: 'All India Institute of Medical Sciences, Ansari Nagar', lat: 28.5672, lng: 77.21 },
-  { name: 'Karol Bagh', label: 'Ajmal Khan Road, New Delhi', lat: 28.6519, lng: 77.1909 },
-  { name: 'Lajpat Nagar Central Market', label: 'Lajpat Nagar, New Delhi', lat: 28.5677, lng: 77.2433 },
-  { name: 'Chandni Chowk', label: 'Old Delhi', lat: 28.6506, lng: 77.2303 },
-  { name: 'Red Fort', label: 'Netaji Subhash Marg, Old Delhi', lat: 28.6562, lng: 77.241 },
-  { name: 'Qutub Minar', label: 'Mehrauli, New Delhi', lat: 28.5245, lng: 77.1855 },
-  { name: 'Lotus Temple', label: 'Kalkaji, New Delhi', lat: 28.5535, lng: 77.2588 },
-  { name: 'Anand Vihar ISBT', label: 'Bus terminal, East Delhi', lat: 28.6469, lng: 77.3158 },
-  { name: 'Kashmere Gate ISBT', label: 'Bus terminal, North Delhi', lat: 28.6677, lng: 77.2285 },
-  { name: 'Nizamuddin Railway Station', label: 'Hazrat Nizamuddin, New Delhi', lat: 28.5891, lng: 77.2537 },
-  { name: 'Cyber Hub, Gurugram', label: 'DLF Cyber City, Gurugram', lat: 28.4949, lng: 77.0895 },
-  { name: 'Ambience Mall, Gurugram', label: 'NH-48, Gurugram', lat: 28.5044, lng: 77.0966 },
-  { name: 'Sector 18, Noida', label: 'Atta Market, Noida', lat: 28.5708, lng: 77.3261 },
-  { name: 'DLF Mall of India, Noida', label: 'Sector 18, Noida', lat: 28.5675, lng: 77.3211 },
-  { name: 'Dwarka Sector 21 Metro', label: 'Dwarka, New Delhi', lat: 28.5522, lng: 77.0583 },
-  { name: 'Rohini Sector 7', label: 'Rohini, New Delhi', lat: 28.7041, lng: 77.1025 },
-  { name: 'Janakpuri District Centre', label: 'Janakpuri, New Delhi', lat: 28.6289, lng: 77.0781 },
-  { name: 'Vasant Kunj', label: 'DLF Promenade, Vasant Kunj', lat: 28.5245, lng: 77.1554 },
-  { name: 'Pacific Mall, Tagore Garden', label: 'Najafgarh Road, West Delhi', lat: 28.6421, lng: 77.1136 },
+  // Chandigarh
+  { name: 'Sector 17 Plaza', label: 'Sector 17, Chandigarh', lat: 30.741, lng: 76.7822 },
+  { name: 'Elante Mall', label: 'Industrial Area Phase 1, Chandigarh', lat: 30.7056, lng: 76.8013 },
+  { name: 'Sukhna Lake', label: 'Sector 1, Chandigarh', lat: 30.7421, lng: 76.8188 },
+  { name: 'Rock Garden', label: 'Sector 1, Chandigarh', lat: 30.7525, lng: 76.8101 },
+  { name: 'Rose Garden', label: 'Zakir Hussain Rose Garden, Sector 16, Chandigarh', lat: 30.7473, lng: 76.7868 },
+  { name: 'PGIMER', label: 'Post Graduate Institute, Sector 12, Chandigarh', lat: 30.7649, lng: 76.7748 },
+  { name: 'Panjab University', label: 'Sector 14, Chandigarh', lat: 30.7601, lng: 76.7684 },
+  { name: 'Chandigarh Railway Station', label: 'Daria, Chandigarh', lat: 30.7042, lng: 76.8426 },
+  { name: 'Chandigarh Airport', label: 'Shaheed Bhagat Singh International Airport', lat: 30.6735, lng: 76.7885 },
+  { name: 'ISBT Sector 43', label: 'Inter State Bus Terminal, Sector 43, Chandigarh', lat: 30.7174, lng: 76.7484 },
+  { name: 'ISBT Sector 17', label: 'Bus stand, Sector 17, Chandigarh', lat: 30.7395, lng: 76.7867 },
+  { name: 'Sector 35 Market', label: 'Sector 35, Chandigarh', lat: 30.7267, lng: 76.7676 },
+  { name: 'Chandigarh IT Park', label: 'Rajiv Gandhi Technology Park, Kishangarh', lat: 30.7378, lng: 76.8338 },
+  { name: 'Capitol Complex', label: 'Sector 1, Chandigarh', lat: 30.7595, lng: 76.8065 },
+  // Mohali (SAS Nagar)
+  { name: 'Phase 3B2 Market', label: 'Phase 3B2, Mohali', lat: 30.7119, lng: 76.7196 },
+  { name: 'PCA Cricket Stadium', label: 'Sector 63, Mohali', lat: 30.6907, lng: 76.7375 },
+  { name: 'Fortis Hospital Mohali', label: 'Sector 62, Mohali', lat: 30.6918, lng: 76.7409 },
+  { name: 'Mohali Bus Stand', label: 'Phase 6, Mohali', lat: 30.7032, lng: 76.7231 },
+  { name: 'IISER Mohali', label: 'Sector 81, Knowledge City, Mohali', lat: 30.6652, lng: 76.7294 },
+  { name: 'Aerocity Mohali', label: 'Airport Road, Mohali', lat: 30.6676, lng: 76.7563 },
+  { name: 'VR Punjab Mall', label: 'Kharar–Chandigarh road, Mohali', lat: 30.7126, lng: 76.6916 },
+  { name: 'Sector 70 Market', label: 'Sector 70, Mohali', lat: 30.694, lng: 76.714 },
+  // Zirakpur
+  { name: 'Zirakpur Chowk', label: 'Zirakpur flyover, Chandigarh–Ambala highway', lat: 30.6425, lng: 76.8173 },
+  { name: 'Cosmo Mall Zirakpur', label: 'Zirakpur', lat: 30.6448, lng: 76.8233 },
+  { name: 'Paras Downtown Square', label: 'Zirakpur', lat: 30.6428, lng: 76.8212 },
+  { name: 'Dhakoli', label: 'Dhakoli, Zirakpur', lat: 30.6515, lng: 76.8395 },
+  // Panchkula
+  { name: 'Sector 5 Panchkula', label: 'Sector 5 market, Panchkula', lat: 30.6942, lng: 76.8606 },
+  { name: 'Panchkula Bus Stand', label: 'Sector 5, Panchkula', lat: 30.6931, lng: 76.8583 },
+  { name: 'Mansa Devi Temple', label: 'Mata Mansa Devi, Panchkula', lat: 30.7161, lng: 76.864 },
+  { name: 'Sector 20 Panchkula', label: 'Sector 20, Panchkula', lat: 30.672, lng: 76.871 },
+  { name: 'Cactus Garden', label: 'Sector 5, Panchkula', lat: 30.7031, lng: 76.8481 },
+  { name: 'Chandimandir', label: 'Chandimandir, Panchkula', lat: 30.7232, lng: 76.8829 },
+  { name: 'Pinjore Gardens', label: 'Yadavindra Gardens, Pinjore', lat: 30.7963, lng: 76.9145 },
 ];
 
 const stmts = {

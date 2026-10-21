@@ -1,6 +1,6 @@
 # SwiftRide — Build Report
 
-Date: 5 September 2026 (updated 21 October 2026 with phases 7 and 8: end-to-end check, fixes, deploy readiness)
+Date: 5 September 2026 (updated 21 October 2026 with phases 7 to 9: end-to-end check, deploy readiness, calls, money, owner and settlement, final APK)
 Project: `C:\Projects\Ideas\Uber`
 Goal: an Uber-style ride-hailing app built from scratch (frontend, backend, database), with separate customer and driver accounts, working ride requests, and the key differentiator: **the customer chooses the route and the fare is calculated from the kilometres of that route.**
 
@@ -475,3 +475,36 @@ Scripted on both tabs, in order, with nothing done over the API:
 8. Rider rated 5 stars, driver rated 4 stars; both tabs confirm.
 
 Every step took effect on the other tab without a reload.
+
+---
+
+## 20. Phase 9 (21 October 2026): calls, money, ratings, arrival radius, vehicle classes, tricity, owner and settlement, final APK
+
+Everything asked for on 21 October, built and tested. The screenshot report is `docs/TEST_REPORT.md`.
+
+### What changed
+
+| Area | What was done |
+| --- | --- |
+| In-app calls | Verified working between two sessions. Hardened: ICE servers fetched from the server (`GET /api/calls/ice`, STUN + a TURN relay for different networks, `TURN_*` env), "Connecting…" state until media really flows, 45 s ring timeout, 20 s connect timeout with a plain message, honest message when the microphone is blocked on plain HTTP. Every call is logged into the chat like a messaging app: "Voice call · 00:04", "Missed voice call", "Voice call declined" |
+| Car on the map | New `CarMarker`: glides between position updates with requestAnimationFrame and turns through the shortest angle; the old CSS transition on every marker (which made pins lag behind map pans) is gone; new top-down car icon; nearby cars grey, your car black with a pulse |
+| Driver money | Earnings page: today / all time, rating, **earnings the company owes you** with a payout request, **fines and dues** with "Pay now" (opens the wallet pre-filled). Breakdown shows fares − 10% commission = the driver's 90%, split into cash kept in hand and wallet credits. Commission is 10% (was 15%) |
+| Ratings | Both driver and rider ratings are the plain average of every rating received, "New" until the first; shown on the driver header, the offer card (rider's rating), the status card, the earnings page and My trips |
+| Arrival | "I've arrived" (and starting from "accepted") only within `ARRIVAL_RADIUS_KM` (1 km) of the pickup, judged from the driver's last position, which must be under 10 minutes old; the driver screen shows the distance and disables the button beyond the radius |
+| Vehicle classes | New **Auto** class (three-wheeler). A driver can only accept rides priced for his registered class; dispatch already filtered, accept now refuses too ("This is a Moto ride. Your registered vehicle is in the Go class…"). Vehicle make, model, colour and plate are required at signup and on the Vehicle page, and a driver cannot go online without them |
+| Cancellation | Both apps ask twice: a dialog with 8 reasons (rider and driver have their own lists) and an "Other reason" box; the fee or penalty is stated in the dialog |
+| Tricity | Demo moved to Chandigarh, Mohali, Zirakpur and Panchkula: map centre, 33 landmarks, seeded driver positions, surge zone at Chandigarh Airport |
+| Demo accounts | Renamed so the login screen is self-explanatory: `rider@demo.com`, `moto.driver@`, `auto.driver@`, `car.driver@`, `car2.driver@`, `comfort.driver@`, `suv.driver@`, `admin@`, `owner@`. Old names are renamed in place by the seed so history carries over |
+| Settlement | A cash ride ends in two steps. "Reached the destination · collect ₹X" puts the ride into `payment_status = collecting`: the rider sees **Pay ₹X** with the company UPI QR (`COMPANY_UPI_ID`) or the option to pay the driver; the driver sees **Collect ₹X** and must confirm "Paid on the company QR" or "Paid to me". Only then is the trip over. Company QR: the company holds the fare and credits the driver 90%. Paid to the driver: he keeps the fare and the 10% comes out of his wallet |
+| Commission guarantee | A cash ride is only offered to, and accepted by, a driver whose wallet already covers the commission on it (dispatch filter + accept check). Demo drivers start with ₹200; the driver screen warns when the wallet is too low |
+| Owner | `owner@demo.com` (`OWNER_EMAILS`) gets a **Company** tab: profit (all commission), cash the company holds, owed to drivers, owed by drivers, owed to riders, net position; every driver with fares, commission, wallet, UPI and a **Pay** button; every rider and staff account; the company ledger. Driver "Withdraw" is now a payout request the owner pays. A `company_ledger` table records top-ups, online collections, commission and payouts |
+| Phone | Stale saved server address falls back to the one baked into the build; honest location messages (timeout vs denied); the suggestion sheet grows above the keyboard; the socket refetches the ride after a reconnect (server restart, phone back from sleep) |
+| APK | `dist-apk/SwiftRide-release.apk` rebuilt with the server address `http://192.168.1.9:4000`, tested on the Android emulator end to end: login, location, search, quote, booking, live driver updates, PIN, the pay-by-QR screen and the receipt |
+
+### Tests
+
+38 server tests pass (`npm test`). New ones cover the arrival radius, the stale-location refusal, class mismatch on accept, true-average ratings, call entries in chat, the two-step cash ending with both settlement paths, the commission precondition in dispatch and accept, and owner payouts.
+
+### Settings added
+
+`COMPANY_NAME`, `COMPANY_UPI_ID`, `OWNER_EMAILS`, `ARRIVAL_RADIUS_KM`, `LOCATION_MAX_AGE_MIN`, `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL`, `STUN_URLS`. `COMMISSION_PERCENT` defaults to 10.

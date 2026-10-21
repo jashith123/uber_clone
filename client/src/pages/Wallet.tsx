@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDate, money, signed, signedClass } from '../lib/format';
@@ -11,7 +12,7 @@ const TX_LABEL: Record<string, string> = {
   cancel_fee: 'Late-cancellation fee',
   cancel_penalty: 'Cancellation penalty',
   commission: 'Platform commission',
-  payout: 'Payout to bank',
+  payout: 'Paid out by the company',
   refund: 'Refund',
   promo: 'Promo credit',
   adjustment: 'Adjustment by support',
@@ -39,7 +40,9 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletT | null>(null);
   const [txs, setTxs] = useState<WalletTx[]>([]);
   const [cfg, setCfg] = useState<PaymentConfig | null>(null);
-  const [amount, setAmount] = useState('500');
+  const [params] = useSearchParams();
+  // Earnings sends drivers here with the amount they owe pre-filled.
+  const [amount, setAmount] = useState(params.get('amount') || '500');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +133,11 @@ export default function WalletPage() {
       <div className="card wallet-hero">
         <small>Balance</small>
         <strong className={signedClass(wallet?.balance ?? 0)}>{money(wallet?.balance ?? 0, wallet?.currency)}</strong>
+        {(wallet?.balance ?? 0) < 0 && (
+          <span className="fee-warning">
+            You owe {money(-(wallet?.balance ?? 0))}: commission on cash rides and any penalties. Add at least that much to clear it.
+          </span>
+        )}
         {cfg && (
           <span className="muted">
             {cfg.live ? 'Card and UPI payments are live.' : 'Test mode: top-ups are free and no real money moves.'}

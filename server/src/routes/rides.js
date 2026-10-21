@@ -73,7 +73,7 @@ for (const status of ['arrived', 'in_progress', 'completed']) {
   const path = status === 'in_progress' ? 'start' : status === 'completed' ? 'complete' : status;
   ridesRouter.post(`/:id/${path}`, requireRole('driver'), (req, res, next) => {
     try {
-      res.json({ ride: advanceRide(req.user, Number(req.params.id), status, { pin: req.body?.pin }) });
+      res.json({ ride: advanceRide(req.user, Number(req.params.id), status, { pin: req.body?.pin, collected_via: req.body?.collected_via }) });
     } catch (e) {
       next(e);
     }
@@ -98,7 +98,7 @@ ridesRouter.get('/:id/messages', (req, res, next) => {
 
 ridesRouter.post('/:id/messages', (req, res, next) => {
   try {
-    res.status(201).json({ message: sendMessage(req.user, Number(req.params.id), req.body?.body) });
+    res.status(201).json({ message: sendMessage(req.user, Number(req.params.id), req.body?.body, req.body?.kind || 'text') });
   } catch (e) {
     next(e);
   }

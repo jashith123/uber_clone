@@ -36,7 +36,8 @@ paymentsRouter.post('/topup/confirm', (req, res, next) => {
 
 paymentsRouter.post('/payout', requireRole('driver'), (req, res, next) => {
   try {
-    res.json({ wallet: requestPayout(req.user, req.body?.amount) });
+    // No amount = withdraw everything that is there.
+    res.json({ wallet: requestPayout(req.user, req.body?.amount ?? getWallet(req.user.id).balance) });
   } catch (e) {
     next(e);
   }

@@ -44,10 +44,10 @@ test('settling a wallet ride pays the driver the fare minus commission', () => {
       VALUES (1, ?, ?, 'economy', 0,0,0,0, '[]', '[]', 5, 10, 200, '{}', 'completed')`).run(rider.id, drv.id);
 
   const { commission, driverShare } = settleRide(ride);
-  assert.equal(commission, 30); // 15% of 200
-  assert.equal(driverShare, 170);
+  assert.equal(commission, 20); // 10% of 200
+  assert.equal(driverShare, 180);
   assert.equal(getWallet(rider.id).balance, Math.round((before - 200) * 100) / 100);
-  assert.equal(getWallet(drv.id).balance, 170);
+  assert.equal(getWallet(drv.id).balance, 180);
 });
 
 test('a cash ride takes only the commission from the driver', () => {
@@ -58,7 +58,7 @@ test('a cash ride takes only the commission from the driver', () => {
       VALUES (2, ?, ?, 'economy', 0,0,0,0, '[]', '[]', 5, 10, 100, '{}', 'completed', 'cash')`).run(rider.id, drv.id);
   settleRide({ id: 2, customer_id: rider.id, driver_id: drv.id, fare_final: 100, fare_estimate: 100, payment_method: 'cash' });
   assert.equal(getWallet(rider.id).balance, riderBefore, 'rider paid in cash, wallet untouched');
-  assert.equal(getWallet(drv.id).balance, Math.round((driverBefore - 15) * 100) / 100);
+  assert.equal(getWallet(drv.id).balance, Math.round((driverBefore - 10) * 100) / 100);
 });
 
 test('promo: percent code is capped and can only be used once per rider', () => {

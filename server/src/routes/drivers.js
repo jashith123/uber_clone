@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { ratingFor } from '../services/rides.js';
 import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
@@ -24,26 +25,37 @@ const upload = multer({
 const DOC_KINDS = ['licence', 'rc', 'insurance', 'permit', 'photo'];
 
 driversRouter.put('/me', (req, res) => {
-  const { vehicle_type, make, model, color, plate } = req.body || {};
+  const { vehicle_type, make, model, color, plate, upi_id } = req.body || {};
   const valid = db.prepare('SELECT 1 FROM pricing WHERE vehicle_type = ?').get(vehicle_type || 'economy');
   if (vehicle_type && !valid) return res.status(400).json({ error: 'Unknown vehicle type' });
+  // The registered car is what riders are matched to and what they look for at
+  // the kerb, so it must be complete.
+  const cur = db.prepare('SELECT vehicle_make, vehicle_model, vehicle_color, plate FROM driver_profiles WHERE user_id = ?').get(req.user.id) || {};
+  const merged = { make: make ?? cur.vehicle_make, model: model ?? cur.vehicle_model, color: color ?? cur.vehicle_color, plate: plate ?? cur.plate };
+  if (!Object.values(merged).every((x) => String(x || '').trim())) {
+    return res.status(400).json({ error: "Fill in your vehicle's make, model, colour and number plate." });
+  }
   db.prepare(
     `UPDATE driver_profiles SET
        vehicle_type = COALESCE(?, vehicle_type),
        vehicle_make = COALESCE(?, vehicle_make),
        vehicle_model = COALESCE(?, vehicle_model),
        vehicle_color = COALESCE(?, vehicle_color),
-       plate = COALESCE(?, plate)
+       plate = COALESCE(?, plate),
+       upi_id = COALESCE(?, upi_id)
      WHERE user_id = ?`,
-  ).run(vehicle_type ?? null, make ?? null, model ?? null, color ?? null, plate ?? null, req.user.id);
+  ).run(vehicle_type ?? null, make ?? null, model ?? null, color ?? null, plate ?? null, upi_id === undefined ? null : String(upi_id).trim(), req.user.id);
   res.json({ user: loadUser(req.user.id) });
 });
 
 driversRouter.post('/me/status', (req, res) => {
   const online = Boolean(req.body?.online);
-  const p = db.prepare('SELECT approval_status FROM driver_profiles WHERE user_id = ?').get(req.user.id);
+  const p = db.prepare('SELECT approval_status, vehicle_make, vehicle_model, vehicle_color, plate FROM driver_profiles WHERE user_id = ?').get(req.user.id);
   if (online && p?.approval_status !== 'approved') {
     return res.status(403).json({ error: 'Your documents are still being reviewed. You cannot go online yet.' });
+  }
+  if (online && ![p?.vehicle_make, p?.vehicle_model, p?.vehicle_color, p?.plate].every((x) => String(x || '').trim())) {
+    return res.status(403).json({ error: 'Register your vehicle (make, model, colour and number plate) on the Vehicle page before going online.' });
   }
   if (online && req.user.is_blocked) return res.status(403).json({ error: 'Your account is blocked.' });
   db.prepare('UPDATE driver_profiles SET is_online = ? WHERE user_id = ?').run(online ? 1 : 0, req.user.id);
@@ -82,26 +94,46 @@ driversRouter.get('/me/earnings', (req, res) => {
       .prepare(
         `SELECT COUNT(*) AS rides,
                 COALESCE(SUM(distance_km), 0) AS km,
-                COALESCE(SUM(fare_final), 0)  AS gross
+                COALESCE(SUM(fare_final), 0)  AS gross,
+                COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN fare_final ELSE 0 END), 0) AS cash_gross,
+                COALESCE(SUM(CASE WHEN payment_method <> 'cash' AND payment_status = 'paid' THEN fare_final ELSE 0 END), 0) AS wallet_gross
          FROM rides WHERE driver_id = ? AND status = 'completed' ${where}`,
       )
       .get(req.user.id);
 
-  const finish = (l, t) => ({
-    rides: t.rides,
-    km: t.km,
-    gross: Math.round(t.gross * 100) / 100,
-    earned: Math.round(l.earned * 100) / 100,
-    fees: Math.round(l.fees * 100) / 100,
-    penalties: Math.round(l.penalties * 100) / 100,
-    commission: Math.round(l.commission * 100) / 100,
-    net: Math.round((l.earned + l.fees - l.penalties - l.commission) * 100) / 100,
-  });
+  // The platform keeps COMMISSION_PERCENT of every fare; the rest is the driver's.
+  // Cash rides: the driver holds the fare and the commission is debited from the
+  // wallet. Wallet/card rides: the driver is credited the fare net of commission,
+  // so the commission on those is the gap between the fares and the credits.
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const finish = (l, t) => {
+    const commission = l.commission + Math.max(0, t.wallet_gross - l.earned);
+    return {
+      rides: t.rides,
+      km: t.km,
+      gross: r2(t.gross),
+      cash_gross: r2(t.cash_gross),
+      wallet_gross: r2(t.wallet_gross),
+      earned: r2(l.earned),
+      fees: r2(l.fees),
+      penalties: r2(l.penalties),
+      commission: r2(commission),
+      net: r2(t.gross - commission + l.fees - l.penalties),
+    };
+  };
 
+  const balance = db.prepare('SELECT COALESCE(balance,0) AS b FROM wallets WHERE user_id = ?').get(req.user.id)?.b ?? 0;
   res.json({
     all_time: finish(ledger(''), trips('')),
     today: finish(ledger(`AND date(created_at) = date('now')`), trips(`AND date(completed_at) = date('now')`)),
-    balance: db.prepare('SELECT COALESCE(balance,0) AS b FROM wallets WHERE user_id = ?').get(req.user.id)?.b ?? 0,
+    balance,
+    // A positive balance can be withdrawn; a negative one is commission and
+    // penalties the driver still owes and can clear with a top-up.
+    withdrawable: Math.max(0, Math.round(balance * 100) / 100),
+    owed: Math.max(0, Math.round(-balance * 100) / 100),
+    commission_percent: config.payments.commissionPercent,
+    payout_requested: db.prepare('SELECT payout_requested FROM driver_profiles WHERE user_id = ?').get(req.user.id)?.payout_requested ?? 0,
+    ...ratingFor(req.user.id, 'driver'),
   });
 });
 

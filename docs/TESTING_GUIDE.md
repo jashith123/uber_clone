@@ -26,11 +26,15 @@ Demo accounts (password is `password` for all):
 
 | Role | Email | Vehicle class |
 | --- | --- | --- |
-| Customer | customer@demo.com | |
+| Customer | rider@demo.com | |
 | Customer | rider2@demo.com | |
-| Driver | driver@demo.com | Go (economy) |
-| Driver | driver2@demo.com | Comfort |
-| Driver | driver3@demo.com | XL |
+| Driver | car.driver@demo.com | Go (economy) |
+| Driver | comfort.driver@demo.com | Comfort |
+| Driver | suv.driver@demo.com | XL |
+| Driver | car2.driver@demo.com | Go (economy), second car |
+| Driver | moto.driver@demo.com | Moto (bike) |
+| Driver | auto.driver@demo.com | Auto (three-wheeler) |
+| Owner | owner@demo.com | Company books, every account, payouts |
 
 You can also create your own accounts from the Sign up page (pick "I want to drive" to make a driver).
 
@@ -44,7 +48,7 @@ Quick check on the PC before touching phones: open http://localhost:4000 in one 
 
 1. Make sure the phone and the PC are on the same Wi-Fi.
 2. On the PC run `npm run serve`.
-3. On the phone open `http://<PC-IP>:4000`. Your PC's current Wi-Fi address is **192.168.29.217** (check with `ipconfig` if it changed). If it does not load, allow Node through Windows Firewall (Windows will usually prompt the first time; otherwise Settings → Firewall → Allow an app).
+3. On the phone open `http://<PC-IP>:4000`. Your PC's current Wi-Fi address is **192.168.1.9** (check with `ipconfig` if it changed). If it does not load, allow Node through Windows Firewall (Windows will usually prompt the first time; otherwise Settings → Firewall → Allow an app).
 4. Everything works **except** phone GPS and the microphone, because browsers only allow those on HTTPS. Workarounds: the driver switches on "Simulate GPS", and the customer sets pickup by tapping the map or searching. In-app calling will show "Microphone access needs HTTPS" — use Option B for that.
 
 ### Option B: HTTPS tunnel (recommended — everything works, and it works off Wi-Fi too)
@@ -93,13 +97,13 @@ A signed APK is in `dist-apk/SwiftRide-release.apk`. It bundles the whole UI and
 1. Copy the APK to each Android phone (WhatsApp to yourself, USB, Google Drive, or `adb install dist-apk/SwiftRide-release.apk`).
 2. Open it; allow "Install unknown apps" when Android asks. It is signed with a development key, so Play Protect may show a warning the first time: choose "Install anyway".
 3. Start the server on the PC: `npm run serve`.
-4. On the login screen the app shows a **Server address** field, pre-filled with `http://192.168.29.217:4000` (the PC's Wi-Fi address when the APK was built). Phones must be on the same Wi-Fi. If the PC's address changed, type the new one. For testing away from home Wi-Fi, run `npm run tunnel` on the PC and enter the `https://...` address instead.
+4. On the login screen the app shows a **Server address** field, pre-filled with `http://192.168.1.9:4000` (the PC's Wi-Fi address when the APK was built). Phones must be on the same Wi-Fi. If the PC's address changed, type the new one. For testing away from home Wi-Fi, run `npm run tunnel` on the PC and enter the `https://...` address instead.
 5. Log in. GPS and microphone work in the APK on plain HTTP (the app is a secure context), so in-app calls and real driver GPS can be tested without a tunnel, as long as both phones can reach the PC.
 
 Rebuild the APK after code changes (needs Android Studio installed):
 
 ```bash
-npm run android:build                       # bakes in 192.168.29.217:4000, builds a signed release APK
+npm run android:build                       # bakes in 192.168.1.9:4000, builds a signed release APK
 SWIFTRIDE_API_URL=http://10.0.0.5:4000 npm run android:build   # different default server
 ```
 
@@ -111,7 +115,7 @@ The signing key in `client/android/keystore/` is a throwaway development key (pa
 
 ## 3. Test scenarios
 
-Use two devices: one logged in as a customer, one as a driver. A third device with `driver2@demo.com` is useful for the "who gets the ride" checks.
+Use two devices: one logged in as a customer, one as a driver. A third device with `comfort.driver@demo.com` is useful for the "who gets the ride" checks.
 
 ### 3.1 Accounts and staying logged in
 

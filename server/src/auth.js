@@ -35,6 +35,16 @@ export function loadUser(id) {
   const out = publicUser(user);
   if (user.role === 'driver') {
     out.driver = db.prepare('SELECT * FROM driver_profiles WHERE user_id = ?').get(id) || null;
+    if (out.driver) {
+      // The honest figure: the average of every rating received, none yet = null.
+      const r = db.prepare('SELECT AVG(driver_rating) AS avg, COUNT(driver_rating) AS n FROM rides WHERE driver_id = ? AND driver_rating IS NOT NULL').get(id);
+      out.driver.rating = r.n ? Math.round(r.avg * 10) / 10 : null;
+      out.driver.rating_count = r.n;
+    }
+  } else {
+    const r = db.prepare('SELECT AVG(customer_rating) AS avg, COUNT(customer_rating) AS n FROM rides WHERE customer_id = ? AND customer_rating IS NOT NULL').get(id);
+    out.rating = r.n ? Math.round(r.avg * 10) / 10 : null;
+    out.rating_count = r.n;
   }
   return out;
 }
@@ -62,4 +72,10 @@ export function requireRole(role) {
     if (req.user.role !== role) return res.status(403).json({ error: `Requires ${role} account` });
     next();
   };
+}
+
+/** Express middleware: the company owner only (OWNER_EMAILS). Owners are admins as well. */
+export function requireOwner(req, res, next) {
+  if (!req.user?.is_owner) return res.status(403).json({ error: 'Owner only' });
+  next();
 }

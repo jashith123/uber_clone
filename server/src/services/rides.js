@@ -4,12 +4,13 @@
  * so this module stays testable without sockets.
  */
 import { db } from '../db.js';
-import { fetchRoutes } from './geo.js';
+import { config } from '../config.js';
+import { fetchRoutes, haversineKm as distanceKm } from './geo.js';
 import { computeFare } from './fare.js';
 import { surgeAt } from './surge.js';
 import { quotePromo, redeemPromo } from './promos.js';
 import { makePin, makeShareToken } from './safety.js';
-import { settleRide, settleCancellation, getWallet } from './payments.js';
+import { settleRide, settleCancellation, getWallet, commissionFor } from './payments.js';
 import * as dispatch from './dispatch.js';
 
 export const RIDE_STATES = ['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'];
@@ -91,7 +92,8 @@ export function serializeRide(row, viewerId = null) {
           vehicle_type: p?.vehicle_type,
           vehicle: p ? [p.vehicle_color, p.vehicle_make, p.vehicle_model].filter(Boolean).join(' ') : null,
           plate: p?.plate,
-          rating: p?.rating ?? 5,
+          upi_id: p?.upi_id ?? null,
+          ...ratingFor(u.id, 'driver'),
           lat: p?.lat ?? null,
           lng: p?.lng ?? null,
           heading: p?.heading ?? null,
@@ -106,9 +108,11 @@ export function serializeRide(row, viewerId = null) {
     waypoints: JSON.parse(row.waypoints),
     route_geometry: JSON.parse(row.route_geometry),
     fare_breakdown: JSON.parse(row.fare_breakdown),
-    customer: customer ? { id: customer.id, name: customer.name, phone: customer.phone } : null,
+    customer: customer ? { id: customer.id, name: customer.name, phone: customer.phone, ...ratingFor(customer.id, 'customer') } : null,
     driver,
     cancel_policy: cancelQuote(row, stmts.pricing.get(row.vehicle_type)),
+    // For the "pay ₹X" screen at the end of a cash ride.
+    company: { name: config.company.name, upi_id: config.company.upiId, commission_percent: config.payments.commissionPercent },
   };
 }
 
@@ -261,6 +265,28 @@ export function acceptRide(driver, rideId) {
   if (stmts.activeForDriver.get(driver.id)) {
     throw Object.assign(new Error('Finish your current ride first'), { status: 409 });
   }
+  // A ride is priced for one vehicle class; only a driver registered in that
+  // class may take it (a Moto rider must not end up in an SUV, or the reverse).
+  const target = stmts.ride.get(rideId);
+  if (target && driver.driver?.vehicle_type && target.vehicle_type !== driver.driver.vehicle_type) {
+    const label = (t) => stmts.pricing.get(t)?.label || t;
+    throw Object.assign(
+      new Error(`This is ${/^[aeiou]/i.test(label(target.vehicle_type)) ? "an" : "a"} ${label(target.vehicle_type)} ride. Your registered vehicle is in the ${label(driver.driver.vehicle_type)} class, so it is not for you.`),
+      { status: 409 },
+    );
+  }
+  // A cash ride is paid to the driver in person, so the commission must already
+  // be sitting in his wallet; otherwise nothing stops him keeping all of it.
+  if (target && target.payment_method === 'cash') {
+    const need = commissionFor(target.fare_estimate);
+    const have = getWallet(driver.id).balance;
+    if (have < need) {
+      throw Object.assign(
+        new Error(`Cash rides need at least ₹${need.toFixed(2)} in your wallet to cover the ${config.payments.commissionPercent}% commission (you have ₹${have.toFixed(2)}). Add money to take this ride.`),
+        { status: 409 },
+      );
+    }
+  }
   if (!dispatch.hasOffer(rideId, driver.id)) {
     throw Object.assign(new Error('That request is no longer offered to you'), { status: 409 });
   }
@@ -290,8 +316,45 @@ const TRANSITIONS = {
   completed: { from: ['in_progress'], col: 'completed_at' },
 };
 
+/**
+ * "I've arrived" only counts within ARRIVAL_RADIUS_KM of the pickup, judged
+ * from the driver's last reported position, which must be recent.
+ */
+export function assertAtPickup(driverId, ride) {
+  const p = stmts.driverProfile.get(driverId);
+  const ageMin = p?.location_at ? (Date.now() - new Date(`${p.location_at.replace(' ', 'T')}Z`).getTime()) / 60000 : Infinity;
+  if (p?.lat == null || p?.lng == null || ageMin > config.locationMaxAgeMin) {
+    throw Object.assign(new Error('We cannot see your location. Turn on GPS (or Simulate GPS in the demo) and try again.'), { status: 400 });
+  }
+  const km = distanceKm({ lat: p.lat, lng: p.lng }, { lat: ride.pickup_lat, lng: ride.pickup_lng });
+  if (km > config.arrivalRadiusKm) {
+    throw Object.assign(
+      new Error(`You are ${km.toFixed(1)} km from the pickup. "I've arrived" works within ${config.arrivalRadiusKm} km of it.`),
+      { status: 400 },
+    );
+  }
+  return km;
+}
+
+// Ratings are the plain average of every rating a person has received.
+const ratingStmts = {
+  driver: db.prepare('SELECT AVG(driver_rating) AS avg, COUNT(driver_rating) AS n FROM rides WHERE driver_id = ? AND driver_rating IS NOT NULL'),
+  customer: db.prepare('SELECT AVG(customer_rating) AS avg, COUNT(customer_rating) AS n FROM rides WHERE customer_id = ? AND customer_rating IS NOT NULL'),
+  syncDriver: db.prepare(`UPDATE driver_profiles SET
+      rating = COALESCE((SELECT AVG(driver_rating) FROM rides WHERE driver_id = ? AND driver_rating IS NOT NULL), 5),
+      rating_count = (SELECT COUNT(driver_rating) FROM rides WHERE driver_id = ? AND driver_rating IS NOT NULL)
+    WHERE user_id = ?`),
+};
+
+/** @returns {{ rating: number|null, rating_count: number }} null until the first rating arrives */
+export function ratingFor(userId, role) {
+  const r = (role === 'driver' ? ratingStmts.driver : ratingStmts.customer).get(userId);
+  return { rating: r.n ? Math.round(r.avg * 10) / 10 : null, rating_count: r.n };
+}
+
 /** Driver-only forward transitions. Starting a trip needs the rider's PIN. */
-export function advanceRide(driver, rideId, nextStatus, { pin } = {}) {
+export function advanceRide(driver, rideId, nextStatus, opts = {}) {
+  const { pin } = opts;
   const t = TRANSITIONS[nextStatus];
   if (!t) throw Object.assign(new Error('Invalid transition'), { status: 400 });
   const ride = stmts.ride.get(rideId);
@@ -303,6 +366,26 @@ export function advanceRide(driver, rideId, nextStatus, { pin } = {}) {
   if (nextStatus === 'in_progress' && ride.pin) {
     if (String(pin || '').trim() !== ride.pin) {
       throw Object.assign(new Error('Wrong PIN. Ask the rider for the 4 digits shown on their screen.'), { status: 400 });
+    }
+  }
+  // Arriving, or starting straight from "accepted", means the car is at the pickup.
+  if (nextStatus === 'arrived' || (nextStatus === 'in_progress' && ride.status === 'accepted')) assertAtPickup(driver.id, ride);
+
+  // Reaching the destination on a cash ride is not the end: the driver first
+  // collects the fare (company QR or in person) and confirms which, so both
+  // apps show "pay / collect ₹X" and the books come out right.
+  if (nextStatus === 'completed' && ride.payment_method === 'cash') {
+    const via = opts.collected_via;
+    if (!via) {
+      if (ride.payment_status !== 'collecting') {
+        db.prepare(`UPDATE rides SET payment_status = 'collecting', fare_final = fare_estimate, dropped_at = datetime('now') WHERE id = ?`).run(rideId);
+        logEvent(rideId, driver.id, 'dropoff', { collect: ride.fare_estimate });
+        broadcast(rideId);
+      }
+      return getRide(rideId, driver.id);
+    }
+    if (!['company_qr', 'driver'].includes(via)) {
+      throw Object.assign(new Error('Say where the fare was collected: company_qr or driver'), { status: 400 });
     }
   }
 
@@ -317,7 +400,7 @@ export function advanceRide(driver, rideId, nextStatus, { pin } = {}) {
   if (nextStatus === 'completed') {
     const fresh = stmts.ride.get(rideId);
     try {
-      settleRide(fresh);
+      settleRide(fresh, opts.collected_via);
     } catch (e) {
       // The wallet came up short between booking and the end of the trip. The
       // rider pays the driver in cash instead, exactly like a cash booking, so
@@ -386,9 +469,7 @@ export function rateRide(user, rideId, stars) {
   if (user.role === 'customer' && ride.customer_id === user.id) {
     if (ride.driver_rating) throw Object.assign(new Error('Already rated'), { status: 409 });
     db.prepare('UPDATE rides SET driver_rating = ? WHERE id = ?').run(n, rideId);
-    db.prepare(
-      `UPDATE driver_profiles SET rating = ((rating * rating_count) + ?) / (rating_count + 1), rating_count = rating_count + 1 WHERE user_id = ?`,
-    ).run(n, ride.driver_id);
+    ratingStmts.syncDriver.run(ride.driver_id, ride.driver_id, ride.driver_id);
   } else if (user.role === 'driver' && ride.driver_id === user.id) {
     if (ride.customer_rating) throw Object.assign(new Error('Already rated'), { status: 409 });
     db.prepare('UPDATE rides SET customer_rating = ? WHERE id = ?').run(n, rideId);

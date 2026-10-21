@@ -107,11 +107,23 @@ export default function PlaceSearch({ value, placeholder, near, onChange, onSele
             onChange(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => {
+          onFocus={(e) => {
             setOpen(true);
             onFocus?.();
+            // Phones: grow the sheet, hide the tab bar and bring the field to the
+            // top, so the suggestion list has room above the keyboard.
+            document.body.classList.add('typing');
+            e.currentTarget.closest('.panel')?.classList.add('typing');
+            const el = e.currentTarget;
+            window.setTimeout(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
           }}
-          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+          onBlur={() =>
+            window.setTimeout(() => {
+              setOpen(false);
+              document.body.classList.remove('typing');
+              document.querySelector('.panel.typing')?.classList.remove('typing');
+            }, 150)
+          }
         />
         {value && (
           <button

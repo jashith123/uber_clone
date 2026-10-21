@@ -32,6 +32,16 @@ export function createApp() {
   app.post('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: 'Too many new accounts from this network. Please try again later.' }));
   app.use('/api/auth', authRouter);
   app.use('/api/geo', geoRouter);
+
+  // ICE servers for in-app calls (see config.ice). Fetched right before a call
+  // so a relay can be changed without a new app build.
+  app.get('/api/calls/ice', requireAuth, (_req, res) => {
+    const servers = [{ urls: config.ice.stun }];
+    if (config.ice.turnUrls.length) {
+      servers.push({ urls: config.ice.turnUrls, username: config.ice.turnUsername, credential: config.ice.turnCredential });
+    }
+    res.json({ ice_servers: servers });
+  });
   app.use('/api/rides', ridesRouter);
   app.use('/api/payments', paymentsRouter);
   app.use('/api/safety', safetyRouter);

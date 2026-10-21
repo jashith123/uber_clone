@@ -31,10 +31,10 @@ It installs anything missing, builds the web app the first time, and then prints
      http://localhost:4000
 
   On your phone (same Wi-Fi as this laptop)
-     http://192.168.29.217:4000
+     http://192.168.1.9:4000
 
   In the Android app, put this in the "Server address" box:
-     http://192.168.29.217:4000
+     http://192.168.1.9:4000
 ```
 
 **Leave that window open.** Closing it stops the server.
@@ -49,7 +49,7 @@ It installs anything missing, builds the web app the first time, and then prints
 ### Step 2 — be the driver on the laptop
 
 1. Open <http://localhost:4000> in your browser.
-2. Log in as **`driver@demo.com`**, password **`password`**, with **"I'm a driver"** selected.
+2. Log in as **`car.driver@demo.com`**, password **`password`**, with **"I'm a driver"** selected.
 3. Tap **Go online**.
 4. Tick **Simulate GPS**. This parks the car in central Delhi and later drives it along the route by itself, which you want because a laptop has no GPS.
 
@@ -57,10 +57,10 @@ It installs anything missing, builds the web app the first time, and then prints
 
 Make sure the phone is on the **same Wi-Fi** as the laptop, then either:
 
-- **Browser:** open the `http://192.168.29.217:4000` address the script printed.
+- **Browser:** open the `http://192.168.1.9:4000` address the script printed.
 - **App:** open the installed SwiftRide app and put that same address in the **Server address** box on the login screen.
 
-Log in as **`customer@demo.com`**, password **`password`**, with **"I'm a rider"** selected.
+Log in as **`rider@demo.com`**, password **`password`**, with **"I'm a rider"** selected.
 
 ### Step 4 — take a ride
 
@@ -216,13 +216,16 @@ Password for all of them is `password`.
 
 | Email | Who |
 | --- | --- |
-| `customer@demo.com` | Rider, starts with money in the wallet |
+| `rider@demo.com` | Rider, starts with money in the wallet |
 | `rider2@demo.com` | A second rider, for testing two riders at once |
 | `admin@demo.com` | Rider **and** admin; open `/admin` after logging in |
-| `driver@demo.com` | Driver, Go class |
-| `driver2@demo.com` | Driver, Comfort class |
-| `driver3@demo.com` | Driver, XL class |
-| `driver4@demo.com` | Driver, Go class, a second one for testing dispatch |
+| `car.driver@demo.com` | Driver, Go class |
+| `comfort.driver@demo.com` | Driver, Comfort class |
+| `suv.driver@demo.com` | Driver, XL class |
+| `car2.driver@demo.com` | Driver, Go class, a second one for testing dispatch |
+| `moto.driver@demo.com` | Moto driver (bike class) |
+| `auto.driver@demo.com` | Auto driver (three-wheeler) |
+| `owner@demo.com` | Owner: company books, all accounts, driver payouts |
 
 Inside the app you can copy any email or password with one tap, or copy the whole list at once.
 

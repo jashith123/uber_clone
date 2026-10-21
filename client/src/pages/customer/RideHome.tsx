@@ -3,7 +3,7 @@ import MapView, { type MapDriver } from '../../components/MapView';
 import PlaceSearch from '../../components/PlaceSearch';
 import RideStatusCard from '../../components/RideStatusCard';
 import { api } from '../../lib/api';
-import { DEFAULT_CENTER, getCurrentPosition } from '../../lib/geo';
+import { DEFAULT_CENTER, getCurrentPosition, locate } from '../../lib/geo';
 import { getSocket } from '../../lib/socket';
 import { alreadyAsked, enablePush, pushPermission } from '../../lib/push';
 import { km, mins, money, shortAddress } from '../../lib/format';
@@ -81,11 +81,15 @@ export default function RideHome() {
     s.on('driver:location', onLoc);
     s.on('dispatch:searching', onSearching);
     s.on('dispatch:none', onNone);
+    // After a reconnect (server restart, phone back from sleep) the ride may have moved on.
+    const onConnect = () => void api<{ ride: Ride | null }>('/rides/active').then((r) => setRide(r.ride)).catch(() => {});
+    s.on('connect', onConnect);
     return () => {
       s.off('ride:update', onUpdate);
       s.off('driver:location', onLoc);
       s.off('dispatch:searching', onSearching);
       s.off('dispatch:none', onNone);
+      s.off('connect', onConnect);
     };
   }, []);
 
@@ -187,8 +191,16 @@ export default function RideHome() {
   }
 
   async function useMyLocation() {
-    const pos = await getCurrentPosition();
-    if (!pos) return setError('Location permission denied. Tap the map to set pickup.');
+    const { pos, reason } = await locate(15000);
+    if (!pos) {
+      return setError(
+        reason === 'denied'
+          ? 'Location permission denied. Allow location for SwiftRide in your phone settings, or tap the map to set the pickup.'
+          : reason === 'unsupported'
+            ? 'This device has no location service. Tap the map to set the pickup.'
+            : 'No GPS fix yet. Move to an open area and try again, or tap the map to set the pickup.',
+      );
+    }
     const wp = await reverse({ lat: pos[0], lng: pos[1] });
     setPickup(wp);
     setPickupText(shortAddress(wp.address, 'Current location'));
@@ -281,7 +293,7 @@ export default function RideHome() {
             busy={busy}
             etaMin={driverLoc?.eta_min ?? ride.driver_eta_min}
             dispatchNote={dispatchNote}
-            onCancel={() => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: 'Changed plans' } }))}
+            onCancel={(reason) => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: reason || 'Changed plans' } }))}
             onRate={(stars) => act(() => api(`/rides/${ride.id}/rate`, { method: 'POST', body: { stars } }))}
             onDone={resetPlan}
           />

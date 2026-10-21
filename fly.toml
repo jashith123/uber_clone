@@ -20,7 +20,7 @@ primary_region = "bom"          # Mumbai
   DB_PATH = "/data/swiftride.db"
   UPLOAD_DIR = "/data/uploads"
   PAYMENT_PROVIDER = "mock"
-  COMMISSION_PERCENT = "15"
+  COMMISSION_PERCENT = "10"
   REQUIRE_DRIVER_APPROVAL = "0"
   ADMIN_EMAILS = "admin@demo.com"
 

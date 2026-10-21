@@ -15,12 +15,24 @@ authRouter.post('/register', (req, res) => {
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   if (!['customer', 'driver'].includes(role)) return res.status(400).json({ error: 'role must be customer or driver' });
 
+  if (role === 'driver') {
+    const v = vehicle || {};
+    if (![v.make, v.model, v.color, v.plate].every((x) => String(x || '').trim())) {
+      return res.status(400).json({ error: 'Drivers must register their vehicle: make, model, colour and number plate.' });
+    }
+    if (!db.prepare('SELECT 1 FROM pricing WHERE vehicle_type = ?').get(v.vehicle_type || 'economy')) {
+      return res.status(400).json({ error: 'Unknown vehicle class' });
+    }
+  }
+
   const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (exists) return res.status(409).json({ error: 'An account with that email already exists' });
 
-  const isAdmin = config.adminEmails.includes(String(email).trim().toLowerCase()) ? 1 : 0;
-  const insert = db.prepare('INSERT INTO users (role, name, email, phone, password_hash, is_admin) VALUES (?,?,?,?,?,?)');
-  const result = insert.run(role, String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hashPassword(password), isAdmin);
+  const lower = String(email).trim().toLowerCase();
+  const isOwner = config.ownerEmails.includes(lower) ? 1 : 0;
+  const isAdmin = isOwner || config.adminEmails.includes(lower) ? 1 : 0;
+  const insert = db.prepare('INSERT INTO users (role, name, email, phone, password_hash, is_admin, is_owner) VALUES (?,?,?,?,?,?,?)');
+  const result = insert.run(role, String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hashPassword(password), isAdmin, isOwner);
   const id = Number(result.lastInsertRowid);
   getWallet(id); // every account gets a wallet from day one
 
@@ -71,7 +83,7 @@ authRouter.post('/login', (req, res) => {
  * it). Once DEMO_PASSWORD is set, the password is no longer given out.
  */
 authRouter.get('/demo', (_req, res) => {
-  const enabled = Boolean(db.prepare(`SELECT 1 FROM users WHERE email = 'customer@demo.com'`).get());
+  const enabled = Boolean(db.prepare(`SELECT 1 FROM users WHERE email IN ('rider@demo.com', 'customer@demo.com')`).get());
   res.json({ enabled, password: enabled && config.demoPassword === 'password' ? 'password' : null });
 });
 

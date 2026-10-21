@@ -115,7 +115,7 @@ The first run installs dependencies and builds the web app, which takes a couple
      http://localhost:4000
 
   On your phone (same Wi-Fi as this laptop)
-     http://192.168.29.217:4000
+     http://192.168.1.9:4000
 ```
 
 Leave that window open. Closing it stops the server.
@@ -148,9 +148,9 @@ npm run autostart off     # undo
 The setup most people want, and it needs nothing installed or paid for.
 
 1. **Start the server** with `start.bat`. Note the phone address it prints.
-2. **Laptop is the driver.** Open <http://localhost:4000>, log in as `driver@demo.com` with **"I'm a driver"** selected, tap **Go online**, and tick **Simulate GPS** so the car has a position and drives itself.
-3. **Phone is the rider.** On the same Wi-Fi, open the printed address, log in as `customer@demo.com` with **"I'm a rider"** selected.
-4. **Book a ride from central Delhi** (search "Connaught Place"). The demo drivers are parked there and only get offered rides within 3 km.
+2. **Laptop is the driver.** Open <http://localhost:4000>, log in as `car.driver@demo.com` with **"I'm a driver"** selected, tap **Go online**, and tick **Simulate GPS** so the car has a position and drives itself.
+3. **Phone is the rider.** On the same Wi-Fi, open the printed address, log in as `rider@demo.com` with **"I'm a rider"** selected.
+4. **Book a ride in the Chandigarh tricity** (search "Sector 17", "Elante", "Mohali" or "Panchkula"). The demo drivers are parked across Chandigarh, Mohali, Zirakpur and Panchkula and only get offered rides within 3 km, then 6, then 10.
 5. The laptop shows an offer card with a countdown. Accept it, then Arrived, then type the PIN shown on the phone, then Complete.
 
 **Nothing happening?** Almost always the driver is offline, the pickup is more than 3 km from the driver, or the rider picked a vehicle class no online driver has. Full troubleshooting in [docs/RUNNING.md](docs/RUNNING.md).
@@ -163,13 +163,16 @@ Password for **all** of them is `password`. In the app you can copy any email or
 
 | Email | Role |
 | --- | --- |
-| `customer@demo.com` | Rider (Asha), starts with wallet balance |
+| `rider@demo.com` | Rider (Asha), starts with wallet balance |
 | `rider2@demo.com` | Rider (Rahul) |
 | `admin@demo.com` | Rider **and** admin — use this to open `/admin` |
-| `driver@demo.com` | Driver, Go class, white Swift Dzire |
-| `driver2@demo.com` | Driver, Comfort class, Honda City |
-| `driver3@demo.com` | Driver, XL class, Toyota Innova |
-| `driver4@demo.com` | Driver, Go class, Hyundai Aura |
+| `car.driver@demo.com` | Driver, Go class, white Swift Dzire |
+| `comfort.driver@demo.com` | Driver, Comfort class, Honda City |
+| `suv.driver@demo.com` | Driver, XL class, Toyota Innova |
+| `car2.driver@demo.com` | Driver, Go class, Hyundai Aura |
+| `moto.driver@demo.com` | Moto driver, Honda Activa (bike class) |
+| `auto.driver@demo.com` | Auto driver, Bajaj RE (three-wheeler, Auto class) |
+| `owner@demo.com` | **Owner**: the company's books, every account and wallet, driver payouts (Company tab in `/admin`) |
 
 Promo codes to try: `WELCOME50`, `FLAT30`, `WEEKEND20`.
 
@@ -312,7 +315,7 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | --- | --- | --- |
 | `PAYMENT_PROVIDER` | `mock` | `razorpay` for real cards and UPI |
 | `RAZORPAY_KEY_ID` / `_SECRET` | empty | Your gateway keys |
-| `COMMISSION_PERCENT` | `15` | Your cut of each fare |
+| `COMMISSION_PERCENT` | `10` | Your cut of each fare; the other 90% is the driver's |
 | `DISPATCH_OFFER_SECONDS` | `20` | How long a driver has to accept |
 | `DISPATCH_RADII_KM` | `3,6,10` | The search rings |
 | `REQUIRE_DRIVER_APPROVAL` | `0` | `1` makes new drivers wait for admin approval |
@@ -323,6 +326,10 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `SEED_DEMO` | `1` | `0` skips the demo accounts on an empty database and creates only an admin |
 | `DEMO_PASSWORD` / `ADMIN_PASSWORD` | `password` | Replace the well-known demo password before sharing a public address; the login page stops printing it |
 | `CLIENT_ORIGIN` | empty | Extra browser origins for the API. The site and the phone app need none |
+| `COMPANY_UPI_ID` / `COMPANY_NAME` | `swiftride@upi` / `SwiftRide` | The company QR riders pay at the end of a cash ride |
+| `OWNER_EMAILS` | `owner@demo.com` | Accounts that get the Company tab: books, every wallet, driver payouts |
+| `ARRIVAL_RADIUS_KM` | `1` | How close the driver must be before "I've arrived" counts |
+| `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` | Open Relay | Relay for in-app calls between different networks; set your own for production |
 
 **Before sharing a public address:** set `DEMO_PASSWORD` (or `SEED_DEMO=0`). Login attempts are rate-limited (30 failures per 15 minutes per address), map-service outages are reported to the rider in plain words, and the server shuts down cleanly on redeploy.
 

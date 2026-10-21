@@ -29,6 +29,42 @@ const stmts = {
   markFailed: db.prepare(`UPDATE payments SET status = 'failed' WHERE id = ?`),
 };
 
+// ---------------------------------------------------------- company ledger ----
+// The company's own money, as a signed ledger like a wallet:
+//   topup          + money a rider or driver added (held on their behalf)
+//   collection     + a fare paid online: wallet, card or the company QR
+//   commission     + the commission taken from a driver who collected a fare himself
+//   driver_payout  − money paid out to a driver's bank account
+const companyStmts = {
+  last: db.prepare('SELECT balance_after FROM company_ledger ORDER BY id DESC LIMIT 1'),
+  add: db.prepare('INSERT INTO company_ledger (amount, balance_after, type, ride_id, user_id, note) VALUES (?,?,?,?,?,?)'),
+  list: db.prepare('SELECT * FROM company_ledger ORDER BY id DESC LIMIT ?'),
+  sumType: db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM company_ledger WHERE type = ?'),
+};
+
+export function companyBalance() {
+  return companyStmts.last.get()?.balance_after ?? 0;
+}
+
+export function companyEntry(amount, type, { rideId = null, userId = null, note = null } = {}) {
+  const amt = round2(Number(amount) || 0);
+  if (!amt) return companyBalance();
+  const next = round2(companyBalance() + amt);
+  companyStmts.add.run(amt, next, type, rideId, userId, note);
+  return next;
+}
+
+export function companyLedger(limit = 100) {
+  return companyStmts.list.all(limit);
+}
+
+export function companyTotal(type) {
+  return round2(companyStmts.sumType.get(type).s);
+}
+
+/** The platform's cut of a fare. */
+export const commissionFor = (fare) => round2((Number(fare) * config.payments.commissionPercent) / 100);
+
 export function getWallet(userId) {
   stmts.createWallet.run(userId);
   return stmts.wallet.get(userId) || { user_id: userId, balance: 0, currency: 'INR' };
@@ -52,6 +88,8 @@ export function credit(userId, amount, type, { rideId = null, note = null, allow
   }
   stmts.setBalance.run(next, userId);
   stmts.addTx.run(userId, amt, next, type, rideId, note);
+  // Money added by a rider or driver is held by the company on their behalf.
+  if (type === 'topup') companyEntry(amt, 'topup', { userId, note });
   return { ...w, balance: next };
 }
 
@@ -62,23 +100,35 @@ export const debit = (userId, amount, type, opts = {}) => credit(userId, -Math.a
  * the platform commission. Cash rides move no wallet money for the rider, but the
  * driver still owes commission, so it is deducted from their balance.
  */
-export function settleRide(ride) {
+export function settleRide(ride, collectedVia = null) {
   const total = round2(ride.fare_final ?? ride.fare_estimate);
-  const commission = round2((total * config.payments.commissionPercent) / 100);
+  const commission = commissionFor(total);
   const driverShare = round2(total - commission);
+  const pct = config.payments.commissionPercent;
+  // How the fare reached us: wallet and card are automatic; a cash ride ends
+  // with the driver saying whether it was paid on the company QR or to him.
+  const via = ride.payment_method === 'cash' ? collectedVia || 'driver' : ride.payment_method;
 
-  if (ride.payment_method === 'wallet') {
+  if (via === 'wallet') {
+    // The rider's money is already held by the company: move the fare to the
+    // company and credit the driver his share.
     debit(ride.customer_id, total, 'ride_fare', { rideId: ride.id, note: `Ride #${ride.id}`, allowNegative: false });
-    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${config.payments.commissionPercent}% commission)` });
-  } else if (ride.payment_method === 'cash') {
-    // Rider paid the driver directly; the driver owes us commission.
-    debit(ride.driver_id, commission, 'commission', { rideId: ride.id, note: `Commission on cash ride #${ride.id}` });
+    companyEntry(total, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid from wallet` });
+    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${pct}% commission)` });
+  } else if (via === 'card' || via === 'company_qr') {
+    // Paid straight to the company (gateway or company QR): the company holds
+    // the whole fare and owes the driver his share until the next payout.
+    companyEntry(total, 'collection', { rideId: ride.id, userId: ride.customer_id, note: `Ride #${ride.id} paid by ${via === 'card' ? 'card' : 'company QR'}` });
+    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${pct}% commission)` });
   } else {
-    // card: charged through the gateway, so only the driver's side is a wallet move
-    credit(ride.driver_id, driverShare, 'ride_earning', { rideId: ride.id, note: `Ride #${ride.id} (after ${config.payments.commissionPercent}% commission)` });
+    // Paid to the driver in person (cash or his own QR): he keeps the fare and
+    // the commission comes out of his wallet, which was checked before the
+    // ride was offered to him.
+    debit(ride.driver_id, commission, 'commission', { rideId: ride.id, note: `${pct}% commission on ride #${ride.id}, which you collected` });
+    companyEntry(commission, 'commission', { rideId: ride.id, userId: ride.driver_id, note: `Commission on ride #${ride.id}` });
   }
-  db.prepare(`UPDATE rides SET payment_status = 'paid' WHERE id = ?`).run(ride.id);
-  return { total, commission, driverShare };
+  db.prepare(`UPDATE rides SET payment_status = 'paid', collected_via = ?, commission = ?, driver_share = ? WHERE id = ?`).run(via, commission, driverShare, ride.id);
+  return { total, commission, driverShare, via };
 }
 
 /** Late-cancellation fee: rider pays, driver receives it (no commission taken). */
@@ -163,11 +213,27 @@ export function confirmTopup(user, { payment_id, razorpay_payment_id, razorpay_o
   return { payment: stmts.payment.get(p.id), wallet };
 }
 
-/** Driver cashing out. Recorded as a payout; real bank transfer is out of scope. */
+/** A driver asks to be paid. The owner pays it from the Company tab; nothing moves until then. */
 export function requestPayout(user, amountRupees) {
   const amount = round2(Number(amountRupees));
   const w = getWallet(user.id);
   if (!(amount > 0)) throw Object.assign(new Error('Enter an amount'), { status: 400 });
   if (amount > w.balance) throw Object.assign(new Error('That is more than your balance'), { status: 400 });
-  return debit(user.id, amount, 'payout', { note: 'Payout requested (bank transfer handled outside the app)' });
+  db.prepare(`UPDATE driver_profiles SET payout_requested = ?, payout_requested_at = datetime('now') WHERE user_id = ?`).run(amount, user.id);
+  return { ...w, payout_requested: amount };
+}
+
+/** The owner pays a driver. The bank transfer happens outside the app; this records it on both sides. */
+export function payDriver(driverId, amountRupees, note = null) {
+  const amount = round2(Number(amountRupees));
+  const w = getWallet(driverId);
+  if (!(amount > 0)) throw Object.assign(new Error('Enter an amount'), { status: 400 });
+  if (amount > w.balance) throw Object.assign(new Error(`The driver's wallet only holds ₹${w.balance.toFixed(2)}`), { status: 400 });
+  const out = debit(driverId, amount, 'payout', { note: note || 'Paid out by the company' });
+  companyEntry(-amount, 'driver_payout', { userId: driverId, note: note || `Payout to driver #${driverId}` });
+  db.prepare(
+    `UPDATE driver_profiles SET payout_requested = MAX(0, payout_requested - ?),
+       payout_requested_at = CASE WHEN payout_requested - ? <= 0 THEN NULL ELSE payout_requested_at END WHERE user_id = ?`,
+  ).run(amount, amount, driverId);
+  return out;
 }

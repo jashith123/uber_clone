@@ -14,6 +14,7 @@ export default function DriverVehicle() {
     model: d?.vehicle_model ?? '',
     color: d?.vehicle_color ?? '',
     plate: d?.plate ?? '',
+    upi_id: d?.upi_id ?? '',
   });
   const [pricing, setPricing] = useState<Pricing[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -41,6 +42,10 @@ export default function DriverVehicle() {
   return (
     <main className="page narrow">
       <h1>Your vehicle</h1>
+      <p className="muted">
+        You only receive rides priced for this class, and riders look for this exact car at the kerb. Every field is required, and you
+        cannot go online without it.
+      </p>
       <form className="card form" onSubmit={submit}>
         <label>
           Class
@@ -61,21 +66,28 @@ export default function DriverVehicle() {
         <div className="grid-2">
           <label>
             Make
-            <input value={form.make} onChange={set('make')} />
+            <input value={form.make} onChange={set('make')} required placeholder="Maruti" />
           </label>
           <label>
             Model
-            <input value={form.model} onChange={set('model')} />
+            <input value={form.model} onChange={set('model')} required placeholder="Swift" />
           </label>
           <label>
             Colour
-            <input value={form.color} onChange={set('color')} />
+            <input value={form.color} onChange={set('color')} required placeholder="White" />
           </label>
           <label>
             Plate
-            <input value={form.plate} onChange={set('plate')} />
+            <input value={form.plate} onChange={set('plate')} required placeholder="DL 01 AB 1234" />
           </label>
         </div>
+        <label>
+          Your UPI ID (optional)
+          <input value={form.upi_id} onChange={set('upi_id')} placeholder="name@bank" />
+          <small className="muted">
+            Shown to riders who choose to pay you directly at the end of a cash ride. The commission on such rides comes out of your wallet.
+          </small>
+        </label>
         {msg && <div className={msg === 'Saved.' ? 'ok' : 'error'}>{msg}</div>}
         <button className="btn btn-primary">Save</button>
       </form>

@@ -519,7 +519,11 @@ h4 {
 .auth-card input,
 .auth-card select,
 .form input,
-.form select {
+.form select,
+.form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 0;
   background: var(--bg-2);
   border-radius: var(--radius-sm);
@@ -544,8 +548,13 @@ h4 {
 }
 .grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+@media (max-width: 480px) {
+  .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .demo-box {
   background: var(--bg-2);
@@ -785,6 +794,10 @@ h4 {
 .veh-comfort {
   background-color: var(--primary-soft);
 }
+.veh-auto {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 10l2-4h9l3 4h2a1 1 0 0 1 1 1v5h-2.5a2.5 2.5 0 0 1-5 0h-3a2.5 2.5 0 0 1-5 0H3v-5a1 1 0 0 1 1-1zm3.2-2.5L6 10h8.5l-1.9-2.5H7.2zM8 15a1.2 1.2 0 1 0 0 2.4A1.2 1.2 0 0 0 8 15zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z' fill='%23000'/%3E%3C/svg%3E");
+  background-color: #fff6c7;
+}
 .veh-xl {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h11l4 4h1a1 1 0 0 1 1 1v6h-2v2h-3v-2H8v2H5v-2H3V8zm2 1v3h10V8H5zm11 0v3h3l-3-3zM6 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z' fill='%23000'/%3E%3C/svg%3E");
   background-color: var(--accent-soft);
@@ -831,16 +844,46 @@ h4 {
 .pin-stop {
   background: var(--accent);
 }
-.car {
-  color: var(--nav);
+/* Cars are moved by CarMarker with requestAnimationFrame, so no CSS transition
+   on marker icons: that used to make every pin lag behind map pans too. */
+.car-wrap {
+  background: none;
+  border: 0;
+}
+.car-marker {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.car-marker.car-active::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: rgba(17, 17, 17, 0.14);
+  animation: car-pulse 1.8s ease-out infinite;
+}
+@keyframes car-pulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.car-body {
+  width: 22px;
+  height: 36px;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
-  transition: transform 0.6s linear;
+  will-change: transform;
 }
-.car-active {
-  color: var(--accent);
+.car-body svg {
+  display: block;
 }
-.leaflet-marker-icon {
-  transition: transform 1s linear;
+.car-body-fill {
+  fill: #6b6b6b;
+}
+.car-active .car-body-fill {
+  fill: #111;
 }
 
 /* ---------- status card ---------- */
@@ -2089,4 +2132,142 @@ table.data tr:hover td {
 .demo-copies .chip {
   padding: 4px 9px;
   font-size: 12px;
+}
+
+/* ---------- cancel dialog ---------- */
+.reason-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.reason-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  cursor: pointer;
+  font-size: 15px;
+}
+.reason-list label:has(input:checked) {
+  outline: 2px solid var(--primary);
+}
+.reason-list input {
+  accent-color: var(--primary);
+}
+.modal textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font: inherit;
+  margin-bottom: 12px;
+}
+
+/* ---------- call entries in the chat ---------- */
+.call-log {
+  align-self: center;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--bg-2);
+  border-radius: 12px;
+  padding: 6px 12px;
+  display: grid;
+  gap: 2px;
+}
+.call-log span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---------- earnings breakdown ---------- */
+.breakdown .row.indent {
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.stat .btn {
+  margin-top: 6px;
+}
+
+/* ---------- pay / collect at the end of a cash ride ---------- */
+.pay-box {
+  border: 2px solid var(--nav);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  background: #fff;
+}
+.pay-box h4 {
+  margin: 0;
+  font-size: 18px;
+}
+.pay-box p,
+.pay-box small {
+  margin: 0;
+}
+.qr {
+  width: 220px;
+  height: 220px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 6px;
+  border: 1px solid var(--line);
+}
+.qr-empty {
+  background: var(--bg-2);
+}
+.pay-alt {
+  font-size: 13px;
+  color: var(--muted);
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+  width: 100%;
+}
+.confirm-box {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+.pay-box .row-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- owner's company tab ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* ---------- phones: typing a place ---------- */
+@media (max-width: 900px) {
+  .panel.typing {
+    max-height: calc(100dvh - var(--nav-h) - 8px);
+  }
+  .panel .search-results {
+    position: static;
+    max-height: none;
+    box-shadow: none;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+  }
+  body.typing .tabbar {
+    display: none;
+  }
 }

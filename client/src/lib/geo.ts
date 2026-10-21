@@ -1,4 +1,25 @@
-export const DEFAULT_CENTER: [number, number] = [28.6139, 77.209]; // New Delhi (seed drivers live here)
+export const DEFAULT_CENTER: [number, number] = [30.741, 76.7822]; // Sector 17, Chandigarh (the demo drivers live in the tricity)
+
+export type LocateReason = 'denied' | 'unavailable' | 'timeout' | 'unsupported' | null;
+
+/** Like getCurrentPosition, but says why it failed, so the message can be honest. */
+export function locate(timeout = 6000): Promise<{ pos: [number, number] | null; reason: LocateReason }> {
+  return new Promise((resolve) => {
+    if (!('geolocation' in navigator)) return resolve({ pos: null, reason: 'unsupported' });
+    const deadline = window.setTimeout(() => resolve({ pos: null, reason: 'timeout' }), timeout + 500);
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        window.clearTimeout(deadline);
+        resolve({ pos: [p.coords.latitude, p.coords.longitude], reason: null });
+      },
+      (e) => {
+        window.clearTimeout(deadline);
+        resolve({ pos: null, reason: e.code === 1 ? 'denied' : e.code === 2 ? 'unavailable' : 'timeout' });
+      },
+      { timeout, maximumAge: 60000, enableHighAccuracy: true },
+    );
+  });
+}
 
 export function getCurrentPosition(timeout = 6000): Promise<[number, number] | null> {
   return new Promise((resolve) => {

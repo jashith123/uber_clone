@@ -26,7 +26,7 @@ services:
       - key: PAYMENT_PROVIDER
         value: mock            # change to razorpay once you have keys
       - key: COMMISSION_PERCENT
-        value: 15
+        value: 10
       - key: REQUIRE_DRIVER_APPROVAL
         value: 0
       - key: ADMIN_EMAILS

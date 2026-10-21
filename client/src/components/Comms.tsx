@@ -1,7 +1,9 @@
 /**
  * In-ride communication between customer and driver:
  *  - text chat (persisted, delivered live over the socket)
- *  - in-app voice call (WebRTC audio, signalled over the socket)
+ *  - in-app voice call (WebRTC audio, signalled over the socket), logged into
+ *    the chat when it ends, like a messaging app ("Voice call · 00:42",
+ *    "Missed call", "Call declined")
  *  - plain phone call fallback (tel: link)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,6 +18,7 @@ interface Message {
   sender_id: number;
   sender_name: string;
   body: string;
+  kind?: 'text' | 'call';
   created_at: string;
 }
 
@@ -28,9 +31,14 @@ interface Signal {
   payload: unknown;
 }
 
-type CallState = 'idle' | 'calling' | 'ringing' | 'connected';
+type CallState = 'idle' | 'calling' | 'ringing' | 'connecting' | 'connected';
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+const DEFAULT_ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+const RING_TIMEOUT_MS = 45_000; // give up calling after this
+const CONNECT_TIMEOUT_MS = 20_000; // answered but media never connected (usually no relay between networks)
+
+const fmtTime = (s: string) => new Date(s.endsWith('Z') ? s : `${s}Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const fmtDuration = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
 
 export default function Comms({ ride }: { ride: Ride }) {
   const { user } = useAuth();
@@ -59,14 +67,21 @@ export default function Comms({ ride }: { ride: Ride }) {
     }
   }, [open, messages.length]);
 
+  const post = useCallback(
+    async (body: string, kind: 'text' | 'call' = 'text') => {
+      const { message } = await api<{ message: Message }>(`/rides/${ride.id}/messages`, { method: 'POST', body: { body, kind } });
+      setMessages((cur) => (cur.some((m) => m.id === message.id) ? cur : [...cur, message]));
+    },
+    [ride.id],
+  );
+
   async function send() {
     const body = text.trim();
     if (!body) return;
     setSending(true);
     setChatError(null);
     try {
-      const { message } = await api<{ message: Message }>(`/rides/${ride.id}/messages`, { method: 'POST', body: { body } });
-      setMessages((cur) => (cur.some((m) => m.id === message.id) ? cur : [...cur, message]));
+      await post(body);
       setText('');
     } catch (e) {
       setChatError((e as Error).message);
@@ -83,10 +98,14 @@ export default function Comms({ ride }: { ride: Ride }) {
   const [callNote, setCallNote] = useState<string | null>(null);
   const callRef = useRef<CallState>('idle');
   callRef.current = call;
+  const secondsRef = useRef(0);
+  secondsRef.current = seconds;
+  const isCaller = useRef(false);
   const pc = useRef<RTCPeerConnection | null>(null);
   const local = useRef<MediaStream | null>(null);
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const audioEl = useRef<HTMLAudioElement>(null);
+  const timer = useRef<number | null>(null);
 
   const signal = useCallback(
     (type: SignalType, payload?: unknown) => {
@@ -97,13 +116,39 @@ export default function Comms({ ride }: { ride: Ride }) {
     [ride.id],
   );
 
+  /** The caller writes one line into the chat per call; the callee's copy arrives over the socket. */
+  const logCall = useCallback(
+    (outcome: 'completed' | 'missed' | 'declined' | 'busy' | 'failed') => {
+      if (!isCaller.current) return;
+      const line =
+        outcome === 'completed'
+          ? `Voice call · ${fmtDuration(secondsRef.current)}`
+          : outcome === 'missed'
+            ? 'Missed voice call'
+            : outcome === 'declined'
+              ? 'Voice call declined'
+              : outcome === 'busy'
+                ? 'Voice call · line busy'
+                : 'Voice call could not connect';
+      post(line, 'call').catch(() => {});
+    },
+    [post],
+  );
+
+  const clearTimer = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+  };
+
   const teardown = useCallback(() => {
+    clearTimer();
     pc.current?.close();
     pc.current = null;
     local.current?.getTracks().forEach((t) => t.stop());
     local.current = null;
     pendingIce.current = [];
     if (audioEl.current) audioEl.current.srcObject = null;
+    isCaller.current = false;
     setCall('idle');
     setIncoming(null);
     setMuted(false);
@@ -112,48 +157,73 @@ export default function Comms({ ride }: { ride: Ride }) {
 
   const endCall = useCallback(
     (notifyPeer = true) => {
-      if (notifyPeer && callRef.current !== 'idle') signal('end');
+      if (callRef.current === 'idle') return;
+      if (callRef.current === 'connected') logCall('completed');
+      else if (callRef.current === 'calling' || callRef.current === 'connecting') logCall(callRef.current === 'calling' ? 'missed' : 'failed');
+      if (notifyPeer) signal('end');
       teardown();
     },
-    [signal, teardown],
+    [signal, teardown, logCall],
   );
 
-  const createPeer = useCallback(
-    async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      local.current = stream;
-      const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      stream.getTracks().forEach((t) => peer.addTrack(t, stream));
-      peer.onicecandidate = (e) => e.candidate && signal('ice', e.candidate.toJSON());
-      peer.ontrack = (e) => {
-        if (audioEl.current) {
-          audioEl.current.srcObject = e.streams[0];
-          audioEl.current.play().catch(() => {});
-        }
-      };
-      peer.onconnectionstatechange = () => {
-        if (peer.connectionState === 'connected') setCall('connected');
-        if (['failed', 'closed'].includes(peer.connectionState)) {
-          setCallNote('Call ended');
-          endCall(false);
-        }
-      };
-      pc.current = peer;
-      return peer;
-    },
-    [signal, endCall],
-  );
+  const createPeer = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    local.current = stream;
+    const iceServers = await api<{ ice_servers: RTCIceServer[] }>('/calls/ice')
+      .then((r) => r.ice_servers)
+      .catch(() => DEFAULT_ICE);
+    const peer = new RTCPeerConnection({ iceServers });
+    stream.getTracks().forEach((t) => peer.addTrack(t, stream));
+    peer.onicecandidate = (e) => e.candidate && signal('ice', e.candidate.toJSON());
+    peer.ontrack = (e) => {
+      if (audioEl.current) {
+        audioEl.current.srcObject = e.streams[0];
+        audioEl.current.play().catch(() => {});
+      }
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'connected') {
+        clearTimer();
+        setCall('connected');
+      }
+      if (['failed', 'closed', 'disconnected'].includes(peer.connectionState) && callRef.current !== 'idle') {
+        setCallNote(callRef.current === 'connected' ? 'Call ended' : 'Could not connect the call. Both phones need internet; try the phone button instead.');
+        if (callRef.current === 'connected') logCall('completed');
+        else logCall('failed');
+        signal('end');
+        teardown();
+      }
+    };
+    pc.current = peer;
+    return peer;
+  }, [signal, teardown, logCall]);
 
   async function startCall() {
     setCallNote(null);
     try {
+      isCaller.current = true;
       const peer = await createPeer();
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
       await peer.setLocalDescription(offer);
       signal('offer', offer);
       setCall('calling');
+      clearTimer();
+      timer.current = window.setTimeout(() => {
+        if (callRef.current === 'calling') {
+          setCallNote(`${other?.name ?? 'They'} did not answer`);
+          logCall('missed');
+          signal('end');
+          teardown();
+        }
+      }, RING_TIMEOUT_MS);
     } catch (e) {
-      setCallNote(`Could not start call: ${(e as Error).message}. Microphone access needs HTTPS (or localhost).`);
+      const msg = (e as Error).message;
+      const secure = window.isSecureContext;
+      setCallNote(
+        secure
+          ? `Could not start the call: ${msg}. Check the microphone permission for this app.`
+          : 'Calls need a secure connection (https or the installed app). Use the phone button instead.',
+      );
       teardown();
     }
   }
@@ -170,7 +240,15 @@ export default function Comms({ ride }: { ride: Ride }) {
       await peer.setLocalDescription(answer);
       signal('answer', answer);
       setIncoming(null);
-      setCall('connected');
+      setCall('connecting');
+      clearTimer();
+      timer.current = window.setTimeout(() => {
+        if (callRef.current === 'connecting') {
+          setCallNote('Could not connect the call. Both phones need internet; try the phone button instead.');
+          signal('end');
+          teardown();
+        }
+      }, CONNECT_TIMEOUT_MS);
     } catch (e) {
       setCallNote(`Could not answer: ${(e as Error).message}`);
       signal('reject');
@@ -196,7 +274,7 @@ export default function Comms({ ride }: { ride: Ride }) {
     const onMsg = (m: Message) => {
       if (m.ride_id !== ride.id) return;
       setMessages((cur) => (cur.some((x) => x.id === m.id) ? cur : [...cur, m]));
-      if (!openRef.current && m.sender_id !== me) setUnread((n) => n + 1);
+      if (!openRef.current && m.sender_id !== me && m.kind !== 'call') setUnread((n) => n + 1);
     };
     const onSignal = async (sig: Signal) => {
       if (sig.ride_id !== ride.id) return;
@@ -212,7 +290,16 @@ export default function Comms({ ride }: { ride: Ride }) {
             await pc.current.setRemoteDescription(new RTCSessionDescription(sig.payload as RTCSessionDescriptionInit));
             for (const c of pendingIce.current) await pc.current.addIceCandidate(c).catch(() => {});
             pendingIce.current = [];
-            setCall('connected');
+            setCall('connecting');
+            clearTimer();
+            timer.current = window.setTimeout(() => {
+              if (callRef.current === 'connecting') {
+                setCallNote('Could not connect the call. Both phones need internet; try the phone button instead.');
+                logCall('failed');
+                signal('end');
+                teardown();
+              }
+            }, CONNECT_TIMEOUT_MS);
           }
           break;
         case 'ice':
@@ -220,15 +307,24 @@ export default function Comms({ ride }: { ride: Ride }) {
           else pendingIce.current.push(sig.payload as RTCIceCandidateInit);
           break;
         case 'end':
-          setCallNote('Call ended');
+          if (callRef.current === 'connected') {
+            setCallNote(`Call ended · ${fmtDuration(secondsRef.current)}`);
+            logCall('completed');
+          } else if (callRef.current === 'ringing') {
+            setCallNote(`Missed call from ${sig.from_name}`);
+          } else {
+            setCallNote('Call ended');
+          }
           teardown();
           break;
         case 'reject':
           setCallNote(`${sig.from_name} declined the call`);
+          logCall('declined');
           teardown();
           break;
         case 'busy':
           setCallNote(`${sig.from_name} is on another call`);
+          logCall('busy');
           teardown();
           break;
       }
@@ -239,7 +335,7 @@ export default function Comms({ ride }: { ride: Ride }) {
       s.off('chat:message', onMsg);
       s.off('call:signal', onSignal);
     };
-  }, [ride.id, me, signal, teardown]);
+  }, [ride.id, me, signal, teardown, logCall]);
 
   // Call timer + cleanup on unmount / ride end.
   useEffect(() => {
@@ -250,8 +346,7 @@ export default function Comms({ ride }: { ride: Ride }) {
   useEffect(() => () => endCall(true), [endCall]);
 
   if (!other) return null;
-  const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const ss = String(seconds % 60).padStart(2, '0');
+  const inCall = call === 'calling' || call === 'connecting' || call === 'connected';
 
   return (
     <div className="comms">
@@ -271,13 +366,13 @@ export default function Comms({ ride }: { ride: Ride }) {
           </button>
         </div>
       )}
-      {(call === 'calling' || call === 'connected') && (
+      {inCall && (
         <div className="call-banner">
           <div>
-            <strong>{call === 'calling' ? 'Calling…' : 'On call'}</strong>
+            <strong>{call === 'calling' ? 'Calling…' : call === 'connecting' ? 'Connecting…' : 'On call'}</strong>
             <small>
               {other.name}
-              {call === 'connected' ? ` · ${mm}:${ss}` : ''}
+              {call === 'connected' ? ` · ${fmtDuration(seconds)}` : ''}
             </small>
           </div>
           {call === 'connected' && (
@@ -310,12 +405,21 @@ export default function Comms({ ride }: { ride: Ride }) {
         <div className="chat">
           <div className="chat-list" ref={listRef}>
             {messages.length === 0 && <p className="muted">Say hello to {other.name}.</p>}
-            {messages.map((m) => (
-              <div key={m.id} className={`bubble ${m.sender_id === me ? 'mine' : ''}`}>
-                <span>{m.body}</span>
-                <small>{new Date(m.created_at.endsWith('Z') ? m.created_at : `${m.created_at}Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
-              </div>
-            ))}
+            {messages.map((m) =>
+              m.kind === 'call' ? (
+                <div key={m.id} className={`call-log ${m.sender_id === me ? 'mine' : ''}`}>
+                  <span>📞 {m.body}</span>
+                  <small>
+                    {m.sender_id === me ? 'Outgoing' : 'Incoming'} · {fmtTime(m.created_at)}
+                  </small>
+                </div>
+              ) : (
+                <div key={m.id} className={`bubble ${m.sender_id === me ? 'mine' : ''}`}>
+                  <span>{m.body}</span>
+                  <small>{fmtTime(m.created_at)}</small>
+                </div>
+              ),
+            )}
           </div>
           {chatError && <div className="error">{chatError}</div>}
           <form

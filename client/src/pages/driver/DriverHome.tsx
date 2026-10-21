@@ -36,6 +36,9 @@ export default function DriverHome() {
     heading: user?.driver?.heading ?? 0,
   }));
   const [simulate, setSimulate] = useState(false);
+  // Cash rides are only offered when the wallet covers the commission, so an
+  // empty wallet quietly means no cash rides: say so.
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [offers, setOffers] = useState<RideOffer[]>([]);
   const [ride, setRide] = useState<Ride | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,6 +47,9 @@ export default function DriverHome() {
   const simStep = useRef(0);
 
   const active = ride && ['accepted', 'arrived', 'in_progress'].includes(ride.status) ? ride : null;
+  useEffect(() => {
+    api<{ wallet: { balance: number } }>('/payments/wallet').then((w) => setWalletBalance(w.wallet.balance)).catch(() => {});
+  }, [online, ride?.status]);
 
   // Initial: active ride + real location.
   useEffect(() => {
@@ -71,11 +77,18 @@ export default function DriverHome() {
     s.on('offer:expired', onExpired);
     s.on('offer:closed', onClosed);
     s.on('ride:update', onUpdate);
+    // After a reconnect the offers and the ride may have changed under us.
+    const onConnect = () => {
+      loadOffers();
+      void api<{ ride: Ride | null }>('/rides/active').then((r) => setRide(r.ride)).catch(() => {});
+    };
+    s.on('connect', onConnect);
     return () => {
       s.off('offer:new', onOffer);
       s.off('offer:expired', onExpired);
       s.off('offer:closed', onClosed);
       s.off('ride:update', onUpdate);
+      s.off('connect', onConnect);
     };
   }, [loadOffers]);
 
@@ -180,7 +193,7 @@ export default function DriverHome() {
           <div>
             <strong>{online ? "You're online" : "You're offline"}</strong>
             <small>
-              {user?.driver?.vehicle_type?.toUpperCase()} · {user?.driver?.plate || 'no plate'} · ★ {user?.driver?.rating?.toFixed(1)}
+              {user?.driver?.vehicle_type?.toUpperCase()} · {user?.driver?.plate || 'no plate'} · ★ {user?.driver?.rating != null ? `${user.driver.rating.toFixed(1)} (${user.driver.rating_count})` : 'New'}
               {user?.driver?.acceptance_rate != null ? ` · ${Math.round(user.driver.acceptance_rate)}% accepted` : ''}
             </small>
           </div>
@@ -209,15 +222,22 @@ export default function DriverHome() {
         <label className="sim-toggle">
           <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} /> Simulate GPS (demo: the car drives itself)
         </label>
+        {online && !active && walletBalance != null && walletBalance < 25 && (
+          <div className="fee-warning">
+            Your wallet holds {money(walletBalance)}. Cash rides are only offered to you when it covers the 10% commission on the fare,
+            so add money (a ₹200 float covers fares up to ₹2,000). Wallet and card rides still reach you. <Link to="/wallet">Add money</Link>
+          </div>
+        )}
         {error && <div className="error">{error}</div>}
 
         {ride && (active || ride.status === 'completed' || ride.status === 'cancelled') ? (
           <RideStatusCard
             ride={ride}
             perspective="driver"
+            driverPos={pos}
             busy={busy}
             onAdvance={(a, opts) => act(() => api(`/rides/${ride.id}/${a}`, { method: 'POST', body: opts }))}
-            onCancel={() => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: 'Driver unavailable' } }))}
+            onCancel={(reason) => act(() => api(`/rides/${ride.id}/cancel`, { method: 'POST', body: { reason: reason || 'Driver unavailable' } }))}
             onRate={(stars) => act(() => api(`/rides/${ride.id}/rate`, { method: 'POST', body: { stars } }))}
             onDone={() => {
               setRide(null);
@@ -286,7 +306,7 @@ function OfferCard({ offer, busy, onAccept, onDecline }: { offer: RideOffer; bus
       </ol>
       <div className="request-meta">
         <span>
-          {km(offer.distance_km)} · {mins(offer.duration_min)} · {offer.customer?.name}
+          {km(offer.distance_km)} · {mins(offer.duration_min)} · {offer.customer?.name}{offer.customer?.rating != null ? ` ★ ${offer.customer.rating.toFixed(1)}` : ' (new rider)'}
           {offer.surge_multiplier > 1 ? ` · ×${offer.surge_multiplier}` : ''}
           {` · ${offer.payment_method}`}
         </span>

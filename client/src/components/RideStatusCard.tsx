@@ -3,6 +3,24 @@ import type { Ride } from '../lib/types';
 import { STATUS_LABEL, km, mins, money, shortAddress, signed, signedClass } from '../lib/format';
 import { api, apiBase } from '../lib/api';
 import Comms from './Comms';
+import CancelDialog from './CancelDialog';
+import PayCollect from './PayCollect';
+import { haversineKm } from '../lib/geo';
+
+/** How the fare was actually settled, for the receipt. */
+function paidBy(ride: Ride) {
+  if (ride.payment_status === 'failed') return `${ride.payment_method} (unpaid)`;
+  switch (ride.collected_via) {
+    case 'company_qr': return 'company QR (UPI)';
+    case 'driver': return "cash or the driver's QR";
+    case 'wallet': return 'wallet';
+    case 'card': return 'card';
+    default: return ride.payment_method;
+  }
+}
+
+/** Keep in step with ARRIVAL_RADIUS_KM on the server. */
+const ARRIVAL_RADIUS_KM = 1;
 
 interface Props {
   ride: Ride;
@@ -10,17 +28,21 @@ interface Props {
   etaMin?: number | null;
   dispatchNote?: string | null;
   onCancel?: (reason?: string) => Promise<void> | void;
-  onAdvance?: (action: 'arrived' | 'start' | 'complete', opts?: { pin?: string }) => Promise<void> | void;
+  onAdvance?: (action: 'arrived' | 'start' | 'complete', opts?: { pin?: string; collected_via?: 'company_qr' | 'driver' }) => Promise<void> | void;
   onRate?: (stars: number) => Promise<void> | void;
   onDone?: () => void;
   busy?: boolean;
+  /** The driver's own last position, for the distance-to-pickup hint. */
+  driverPos?: { lat: number; lng: number } | null;
 }
 
-export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote, onCancel, onAdvance, onRate, onDone, busy }: Props) {
+export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote, onCancel, onAdvance, onRate, onDone, busy, driverPos }: Props) {
   const [stars, setStars] = useState(0);
   const [pin, setPin] = useState('');
   const [sos, setSos] = useState<{ contacts: { name: string; phone: string }[]; share_url: string | null } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const pickupKm = perspective === 'driver' && driverPos ? haversineKm(driverPos, { lat: ride.pickup_lat, lng: ride.pickup_lng }) : null;
   const other = perspective === 'customer' ? ride.driver : ride.customer;
   const canCancel = ['requested', 'accepted', 'arrived'].includes(ride.status);
   const alreadyRated = perspective === 'customer' ? ride.driver_rating : ride.customer_rating;
@@ -64,6 +86,24 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
 
   return (
     <div className="card status-card">
+      {cancelling && onCancel && (
+        <CancelDialog
+          perspective={perspective}
+          busy={busy}
+          feeNote={
+            perspective === 'customer' && ride.cancel_policy?.customer_fee > 0
+              ? `Late cancellation: ${signed(-ride.cancel_policy.customer_fee, ride.currency)} will be charged because the driver already ${ride.status === 'arrived' ? 'arrived' : 'accepted more than 2 minutes ago'}.`
+              : perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0
+                ? `Cancelling now deducts ${signed(-ride.cancel_policy.driver_penalty, ride.currency)} from your earnings, and the rider goes back into the queue.`
+                : null
+          }
+          onClose={() => setCancelling(false)}
+          onConfirm={async (reason) => {
+            await onCancel(reason);
+            setCancelling(false);
+          }}
+        />
+      )}
       <div className="status-head">
         <div>
           <div className={`status-badge status-${ride.status}`}>{STATUS_LABEL[ride.status]}</div>
@@ -74,7 +114,12 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
                 ? `${ride.driver?.name} is ${etaMin ? `${etaMin} min away` : 'heading to you'}`
                 : 'Head to the pickup')}
             {ride.status === 'arrived' && (perspective === 'customer' ? 'Your driver is here' : 'Waiting for the rider')}
-            {ride.status === 'in_progress' && `Heading to ${shortAddress(ride.dropoff_address, 'drop-off')}`}
+            {ride.status === 'in_progress' &&
+              (ride.payment_status === 'collecting'
+                ? perspective === 'customer'
+                  ? 'You have arrived · pay your driver'
+                  : 'Arrived · collect the fare'
+                : `Heading to ${shortAddress(ride.dropoff_address, 'drop-off')}`)}
             {ride.status === 'completed' && 'Trip complete'}
             {ride.status === 'cancelled' && `Cancelled by ${ride.cancelled_by ?? 'someone'}`}
           </h3>
@@ -126,12 +171,21 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
             <strong>{other.name}</strong>
             {perspective === 'customer' && ride.driver && (
               <small>
-                {ride.driver.vehicle || 'Vehicle'} · <b>{ride.driver.plate || '—'}</b> · ★ {ride.driver.rating.toFixed(1)}
+                {ride.driver.vehicle || 'Vehicle'} · <b>{ride.driver.plate || '—'}</b> · ★{' '}
+                {ride.driver.rating != null ? `${ride.driver.rating.toFixed(1)} (${ride.driver.rating_count ?? 0})` : 'New'}
               </small>
             )}
-            {perspective === 'driver' && <small>{ride.customer?.phone || 'Rider'}</small>}
+            {perspective === 'driver' && (
+              <small>
+                {ride.customer?.phone || 'Rider'} · ★ {ride.customer?.rating != null ? `${ride.customer.rating.toFixed(1)} (${ride.customer.rating_count ?? 0})` : 'new rider'}
+              </small>
+            )}
           </div>
         </div>
+      )}
+
+      {ride.status === 'in_progress' && ride.payment_status === 'collecting' && (
+        <PayCollect ride={ride} perspective={perspective} busy={busy} onCollected={(via) => onAdvance?.('complete', { collected_via: via })} />
       )}
 
       {other && live && <Comms ride={ride} />}
@@ -172,9 +226,20 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
 
       <div className="status-actions">
         {perspective === 'driver' && ride.status === 'accepted' && (
-          <button className="btn btn-primary" disabled={busy} onClick={() => onAdvance?.('arrived')}>
-            I&rsquo;ve arrived
-          </button>
+          <>
+            {pickupKm != null && (
+              <div className={pickupKm > ARRIVAL_RADIUS_KM ? 'call-note' : 'ok'}>
+                {pickupKm > ARRIVAL_RADIUS_KM
+                  ? `You are ${pickupKm.toFixed(1)} km from the pickup. "I've arrived" works within ${ARRIVAL_RADIUS_KM} km of it.`
+                  : pickupKm < 0.1
+                    ? 'You are at the pickup.'
+                    : `You are ${Math.round(pickupKm * 1000)} m from the pickup.`}
+              </div>
+            )}
+            <button className="btn btn-primary" disabled={busy || (pickupKm != null && pickupKm > ARRIVAL_RADIUS_KM)} onClick={() => onAdvance?.('arrived')}>
+              I&rsquo;ve arrived
+            </button>
+          </>
         )}
         {perspective === 'driver' && ['accepted', 'arrived'].includes(ride.status) && (
           <button
@@ -185,9 +250,11 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
             {ride.pin_required && pin.length !== 4 ? 'Enter the PIN to start' : 'Start trip'}
           </button>
         )}
-        {perspective === 'driver' && ride.status === 'in_progress' && (
+        {perspective === 'driver' && ride.status === 'in_progress' && ride.payment_status !== 'collecting' && (
           <button className="btn btn-primary" disabled={busy} onClick={() => onAdvance?.('complete')}>
-            Complete trip · {money(ride.fare_estimate, ride.currency)}
+            {ride.payment_method === 'cash'
+              ? `Reached the destination · collect ${money(ride.fare_estimate, ride.currency)}`
+              : `Complete trip · ${money(ride.fare_estimate, ride.currency)} paid by ${ride.payment_method}`}
           </button>
         )}
         {canCancel && onCancel && perspective === 'customer' && ride.cancel_policy?.customer_fee > 0 && (
@@ -206,7 +273,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
           </div>
         )}
         {canCancel && onCancel && (
-          <button className="btn btn-danger-ghost" disabled={busy} onClick={() => onCancel()}>
+          <button className="btn btn-danger-ghost" disabled={busy} onClick={() => setCancelling(true)}>
             Cancel ride
             {perspective === 'customer' && ride.cancel_policy?.customer_fee > 0 ? ` · ${signed(-ride.cancel_policy.customer_fee, ride.currency)}` : ''}
             {perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0 ? ` · ${signed(-ride.cancel_policy.driver_penalty, ride.currency)}` : ''}
@@ -235,7 +302,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
             bold
             signedValue
           />
-          <Row label="Paid by" value={`${ride.payment_method}${ride.payment_status === 'failed' ? ' (unpaid)' : ''}`} />
+          <Row label="Paid by" value={paidBy(ride)} />
           {perspective === 'driver' && (
             <p className="muted" style={{ fontSize: 12, margin: 0 }}>
               Your share after commission is shown in Earnings and in your wallet.

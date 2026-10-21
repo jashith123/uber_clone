@@ -252,3 +252,19 @@ CREATE TABLE IF NOT EXISTS surge_zones (
   active     INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- The company's own money, as a signed ledger like a wallet. See payments.js:
+--   topup (+ money a rider/driver added, held for them), collection (+ a fare paid
+--   online or on the company QR), commission (+ taken from a driver who collected
+--   the fare himself), driver_payout (- paid out to a driver's bank).
+CREATE TABLE IF NOT EXISTS company_ledger (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  amount        REAL NOT NULL,
+  balance_after REAL NOT NULL,
+  type          TEXT NOT NULL,
+  ride_id       INTEGER REFERENCES rides(id),
+  user_id       INTEGER REFERENCES users(id),
+  note          TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_company_ledger_type ON company_ledger(type);

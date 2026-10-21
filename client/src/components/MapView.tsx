@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import CarMarker from './CarMarker';
 import L from 'leaflet';
 import type { Waypoint } from '../lib/types';
 
@@ -31,16 +32,6 @@ const pinIcon = (kind: 'pickup' | 'stop' | 'dropoff', label?: string) =>
     html: `<div class="pin pin-${kind}">${label ?? ''}</div>`,
     iconSize: [22, 22],
     iconAnchor: [11, 11],
-  });
-
-const carIcon = (heading: number | null | undefined, active?: boolean) =>
-  L.divIcon({
-    className: 'pin-wrap',
-    html: `<div class="car ${active ? 'car-active' : ''}" style="transform:rotate(${heading ?? 0}deg)">
-      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 2c-1.2 0-2.6.5-3.4 1.2C7.8 3.9 7 5.4 7 7v10.5c0 1.4 1.1 2.5 2.5 2.5h5c1.4 0 2.5-1.1 2.5-2.5V7c0-1.6-.8-3.1-1.6-3.8C14.6 2.5 13.2 2 12 2zm-3 7 1-2.5h4L15 9H9zm0 4h6v2H9v-2z"/></svg>
-    </div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
   });
 
 function ClickHandler({ onClick }: { onClick?: (latlng: { lat: number; lng: number }) => void }) {
@@ -138,7 +129,7 @@ export default function MapView({
       })}
 
       {drivers.map((d) => (
-        <Marker key={`drv-${d.id}`} position={[d.lat, d.lng]} icon={carIcon(d.heading, d.active)} interactive={false} />
+        <CarMarker key={`drv-${d.id}`} lat={d.lat} lng={d.lng} heading={d.heading} active={d.active} />
       ))}
     </MapContainer>
   );

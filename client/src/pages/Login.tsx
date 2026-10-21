@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { ApiError, apiBase, isNativeApp, setApiBase } from '../lib/api';
@@ -35,6 +35,29 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [showServer, setShowServer] = useState(isNativeApp());
   const [server, setServer] = useState(apiBase());
+  const [serverNote, setServerNote] = useState<string | null>(null);
+
+  // Native app: a server address saved during an earlier test goes stale when
+  // the PC's Wi-Fi address changes. If it does not answer but the address baked
+  // into this build does, switch over and say so.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const baked = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+    const current = apiBase();
+    if (!baked || baked === current) return;
+    const ping = (base: string) =>
+      fetch(`${base}/api/health`, { signal: AbortSignal.timeout(3000) })
+        .then((r) => r.ok)
+        .catch(() => false);
+    ping(current).then(async (ok) => {
+      if (ok) return;
+      if (await ping(baked)) {
+        setApiBase(baked);
+        setServer(baked);
+        setServerNote(`The saved server ${current} did not answer, so the app switched to ${baked}.`);
+      }
+    });
+  }, []);
 
   async function doLogin(asRole: Role) {
     setBusy(true);
@@ -100,6 +123,7 @@ export default function Login() {
             Server address
             <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://192.168.29.217:4000 or https://xxx.loca.lt" inputMode="url" />
             <small className="muted">The PC running &quot;npm run serve&quot;, or the tunnel address.</small>
+            {serverNote && <small className="ok">{serverNote}</small>}
           </label>
         ) : (
           <button type="button" className="link" onClick={() => setShowServer(true)}>
@@ -133,6 +157,7 @@ export default function Login() {
           New here? <Link to={`/signup?role=${role}`}>Create a {roleWord(role)} account</Link>
         </p>
         <DemoAccounts
+          key={server}
           role={role}
           onUse={(a) => {
             setEmail(a.email);

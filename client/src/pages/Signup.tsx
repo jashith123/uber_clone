@@ -69,6 +69,9 @@ export default function Signup() {
         {role === 'driver' && (
           <fieldset className="vehicle-fields">
             <legend>Your vehicle</legend>
+            <p className="muted" style={{ margin: '0 0 8px', fontSize: 13 }}>
+              Riders are matched to your vehicle class and look for this exact car, so every field is needed.
+            </p>
             <label>
               Class
               <select value={vehicle.vehicle_type} onChange={setV('vehicle_type')}>
@@ -82,19 +85,19 @@ export default function Signup() {
             <div className="grid-2">
               <label>
                 Make
-                <input value={vehicle.make} onChange={setV('make')} placeholder="Maruti" />
+                <input value={vehicle.make} onChange={setV('make')} placeholder="Maruti" required />
               </label>
               <label>
                 Model
-                <input value={vehicle.model} onChange={setV('model')} placeholder="Swift" />
+                <input value={vehicle.model} onChange={setV('model')} placeholder="Swift" required />
               </label>
               <label>
                 Colour
-                <input value={vehicle.color} onChange={setV('color')} placeholder="White" />
+                <input value={vehicle.color} onChange={setV('color')} placeholder="White" required />
               </label>
               <label>
                 Plate
-                <input value={vehicle.plate} onChange={setV('plate')} placeholder="DL 01 AB 1234" />
+                <input value={vehicle.plate} onChange={setV('plate')} placeholder="DL 01 AB 1234" required />
               </label>
             </div>
           </fieldset>
