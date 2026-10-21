@@ -74,6 +74,7 @@ function migrate(db) {
   ensureColumn('driver_profiles', 'payout_requested_at', 'TEXT');
   ensureColumn('users', 'is_owner', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'outstanding_fee', 'REAL NOT NULL DEFAULT 0'); // rider fines not yet collected; added to the next ride
+  ensureColumn('users', 'ride_pin', 'TEXT'); // a rider's fixed 4-digit trip PIN, the same on every ride
   ensureColumn('rides', 'due_carried', 'REAL NOT NULL DEFAULT 0');     // outstanding fee folded into this ride
   ensureColumn('rides', 'wallet_paid', 'REAL NOT NULL DEFAULT 0');     // part of the total paid from the rider's wallet
   ensureColumn('rides', 'commission_waived', 'REAL NOT NULL DEFAULT 0'); // commission not taken on a driver's free first rides

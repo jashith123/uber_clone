@@ -142,6 +142,19 @@ function broadcast(rideId, event = 'ride:update') {
   return row;
 }
 
+/**
+ * A rider's trip PIN is fixed: made once, the same on every ride, so they can
+ * learn it instead of reading a new one each time. The driver still has to
+ * type it to start the trip.
+ */
+export function pinFor(customerId) {
+  const row = db.prepare('SELECT ride_pin FROM users WHERE id = ?').get(customerId);
+  if (row?.ride_pin) return row.ride_pin;
+  const pin = makePin();
+  db.prepare('UPDATE users SET ride_pin = ? WHERE id = ?').run(pin, customerId);
+  return pin;
+}
+
 /** Paid rides this driver has completed; the first few are commission-free. */
 export function driverPaidRides(driverId) {
   return db.prepare(`SELECT COUNT(*) AS n FROM rides WHERE driver_id = ? AND status = 'completed' AND payment_status = 'paid'`).get(driverId).n;
@@ -237,7 +250,7 @@ export async function createRide(customer, body) {
     JSON.stringify(breakdown),
     pricing.currency,
     payment_method,
-    makePin(),
+    pinFor(customer.id),
     makeShareToken(),
     surge.multiplier,
     promo.ok ? promo.code : null,

@@ -168,7 +168,11 @@ Added after the sequence above, so the books were reset once more and refilled t
 
 Screenshots: `test-2026-10-21-driver-free-rides.png`, `test-2026-10-21-welcome-offer.png`, `test-2026-10-21-welcome-receipt.png`. Tests: 45 pass, including the new `incentives.test.js`.
 
-## 9. Known limits
+## 9. Fixed trip PIN
+
+Each rider now has one 4-digit trip PIN, made once for the account and used on every ride, shown on the Trips page ("Your ride PIN · the same on every ride") and on the ride screen. The driver still has to type it to start the trip. Checked: two calls to the profile return the same PIN; a new ride for Rahul carries it; . 46 tests pass.
+
+## 10. Known limits
 
 - The emulator's own GPS can be slow; on a real phone the location prompt and fix are normal Android behaviour.
 - In-app calls between two different networks (mobile data on both sides) use the free Open Relay TURN server by default; for production set your own `TURN_URLS`.

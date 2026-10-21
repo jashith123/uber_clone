@@ -466,3 +466,12 @@ test('the reset wipes rides and transactions but keeps accounts', async () => {
   assert.ok(db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0, 'accounts kept');
   assert.ok(db.prepare('SELECT COUNT(*) AS n FROM pricing').get().n >= 5, 'prices kept');
 });
+
+test('a rider keeps the same trip PIN on every ride', () => {
+  const a = rides.pinFor(customer.id);
+  const b = rides.pinFor(customer.id);
+  assert.match(a, /^[0-9]{4}$/);
+  assert.equal(a, b);
+  const other = Number(db.prepare('INSERT INTO users (role,name,email,password_hash) VALUES (?,?,?,?)').run('customer', 'O', 'o@t.com', hashPassword('x')).lastInsertRowid);
+  assert.match(rides.pinFor(other), /^[0-9]{4}$/);
+});

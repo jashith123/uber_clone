@@ -51,6 +51,12 @@ export function loadUser(id) {
     const r = db.prepare('SELECT AVG(customer_rating) AS avg, COUNT(customer_rating) AS n FROM rides WHERE customer_id = ? AND customer_rating IS NOT NULL').get(id);
     out.rating = r.n ? Math.round(r.avg * 10) / 10 : null;
     out.rating_count = r.n;
+    // The rider's fixed trip PIN, so the app can show it outside a ride too.
+    if (!user.ride_pin) {
+      user.ride_pin = String(1000 + Math.floor(Math.random() * 9000));
+      db.prepare('UPDATE users SET ride_pin = ? WHERE id = ?').run(user.ride_pin, id);
+    }
+    out.ride_pin = user.ride_pin;
   }
   return out;
 }

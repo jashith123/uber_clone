@@ -35,6 +35,8 @@ export interface User {
   is_blocked?: number;
   /** Riders: a cancellation fee not yet collected; added to the next ride. */
   outstanding_fee?: number;
+  /** Riders: the fixed 4-digit trip PIN, the same on every ride. */
+  ride_pin?: string | null;
   /** Riders: average of the ratings drivers gave them; null until the first one. */
   rating?: number | null;
   rating_count?: number;

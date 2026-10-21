@@ -48,6 +48,11 @@ export default function Trips() {
             <span>{rides.filter((r) => r.status === 'completed').length} completed trips</span>
           </div>
           <div className="card stat">
+            <small>Your ride PIN</small>
+            <strong>{user?.ride_pin ?? '—'}</strong>
+            <span>the same on every ride; read it out to the driver so the right car takes you</span>
+          </div>
+          <div className="card stat">
             <small>Your rating</small>
             <strong>{user?.rating != null ? `★ ${user.rating.toFixed(1)}` : 'New'}</strong>
             <span>{user?.rating_count ? `average of ${user.rating_count} driver rating${user.rating_count === 1 ? '' : 's'}` : 'no ratings yet'}</span>
