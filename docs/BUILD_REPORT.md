@@ -458,3 +458,20 @@ Every loose end from the phase 7 check was closed, then the deployment path was 
 - Browser: demo panel reads from the server, wrong-tab login switches and lands on `/drive`, landing page still prompts logged-out visitors to log in. No console errors.
 
 One side effect to know about: generating a real secret invalidates sessions signed with the old dev default, so everyone on this laptop logs in once more.
+
+### Two sessions in one browser: rider and driver side by side
+
+Earlier runs held one role in the browser and drove the other over the API. This run put both in the browser at once: the rider logged in on `http://localhost:4000` and the driver on `http://127.0.0.1:4000`. The two origins keep separate storage, so the logins do not collide, and both screens update from the same server over Socket.IO.
+
+Scripted on both tabs, in order, with nothing done over the API:
+
+1. Rider: pickup from geolocation, destination "India Gate" from the suggestions, Route A ₹97.10, **Confirm Go**.
+2. Driver tab (already online, simulated GPS on): the offer appeared with its countdown; **Accept**.
+3. Rider tab: "Driver on the way · Dev Driver is 1 min away", PIN shown.
+4. Chat: rider sent a message; the driver's button showed **💬 Message (1)** before it was opened; the driver replied; the rider saw the reply. Both transcripts match (`docs/screenshots/test-2026-10-21-two-tabs-*.png`).
+5. Driver: **I've arrived**; rider tab switched to "Your driver is here".
+6. Driver typed the rider's PIN, **Start**; both tabs show "On trip".
+7. Driver: **Complete trip**; rider tab shows the receipt, driver tab shows "Fare collected".
+8. Rider rated 5 stars, driver rated 4 stars; both tabs confirm.
+
+Every step took effect on the other tab without a reload.
