@@ -92,7 +92,7 @@ Screenshots: `test-2026-10-21-earnings.png`, `test-2026-10-21-earnings-withdrawn
 
 ## 5. Phone: the signed APK on an Android emulator
 
-`dist-apk/SwiftRide-release.apk`, server address `http://192.168.1.9:4000` baked in.
+`final-apk/SwiftRide-release.apk`, server address `http://192.168.1.9:4000` baked in.
 
 | Check | Result |
 | --- | --- |

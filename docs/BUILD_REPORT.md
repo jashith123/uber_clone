@@ -299,7 +299,7 @@ The user has Android Studio, so the web app was wrapped into a native Android ap
 - The API address is no longer hard-coded as relative: `apiBase()` in `client/src/lib/api.ts` uses the address typed on the login screen, else the `VITE_API_URL` baked in at build time (`http://192.168.29.217:4000` for this APK), else same-origin. The website build stays relative.
 - The server now also accepts the native origins `https://localhost` and `capacitor://localhost`.
 - Build: `npm run android:build` (bakes the API URL, syncs assets, runs Gradle `assembleRelease`). Gradle 8.14.3 from Android Studio's cache is used because downloading a fresh distribution timed out on this network.
-- Output copied to `dist-apk/SwiftRide-release.apk`. Install steps and the server-address workflow are in the testing guide, Option C.
+- Output copied to `final-apk/SwiftRide-release.apk`. Install steps and the server-address workflow are in the testing guide, Option C.
 - Not built: iOS (needs a Mac with Xcode; the same Capacitor project supports `npx cap add ios`).
 
 ---
@@ -499,7 +499,7 @@ Everything asked for on 21 October, built and tested. The screenshot report is `
 | Commission guarantee | A cash ride is only offered to, and accepted by, a driver whose wallet already covers the commission on it (dispatch filter + accept check). Demo drivers start with ₹200; the driver screen warns when the wallet is too low |
 | Owner | `owner@demo.com` (`OWNER_EMAILS`) gets a **Company** tab: profit (all commission), cash the company holds, owed to drivers, owed by drivers, owed to riders, net position; every driver with fares, commission, wallet, UPI and a **Pay** button; every rider and staff account; the company ledger. Driver "Withdraw" is now a payout request the owner pays. A `company_ledger` table records top-ups, online collections, commission and payouts |
 | Phone | Stale saved server address falls back to the one baked into the build; honest location messages (timeout vs denied); the suggestion sheet grows above the keyboard; the socket refetches the ride after a reconnect (server restart, phone back from sleep) |
-| APK | `dist-apk/SwiftRide-release.apk` rebuilt with the server address `http://192.168.1.9:4000`, tested on the Android emulator end to end: login, location, search, quote, booking, live driver updates, PIN, the pay-by-QR screen and the receipt |
+| APK | `final-apk/SwiftRide-release.apk` rebuilt with the server address `http://192.168.1.9:4000`, tested on the Android emulator end to end: login, location, search, quote, booking, live driver updates, PIN, the pay-by-QR screen and the receipt |
 
 ### Tests
 

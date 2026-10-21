@@ -182,7 +182,7 @@ Promo codes to try: `WELCOME50`, `FLAT30`, `WEEKEND20`.
 
 ## Get it on a phone
 
-**Android app.** Install [`dist-apk/SwiftRide-release.apk`](dist-apk/). Phone and PC on the same Wi-Fi; the login screen already carries the PC's address. Rebuild it after code changes with `npm run android:build`.
+**Android app.** Install [`final-apk/SwiftRide-release.apk`](final-apk/). Phone and PC on the same Wi-Fi; the login screen already carries the PC's address. Rebuild it after code changes with `npm run apk`; the folder always holds exactly one file, the newest build.
 
 **Installable web app.** Open the site on a phone over HTTPS (`npm run tunnel`) and choose "Install app" on Android or "Add to Home Screen" on iPhone.
 
@@ -300,7 +300,7 @@ uber_clone/
 │   ├── public/        manifest, service worker, icons
 │   └── scripts/       build-android.mjs, make-icons.mjs, make-android-icons.mjs
 ├── docs/              BUILD_REPORT.md  TESTING_GUIDE.md  report.html  screenshots/
-├── dist-apk/          the built Android app
+├── final-apk/         the newest Android app build, one file, replaced on every `npm run apk`
 ├── Dockerfile  docker-compose.yml
 └── package.json
 ```

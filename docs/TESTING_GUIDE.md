@@ -92,9 +92,9 @@ What this is and is not: this is a Progressive Web App. It installs from the bro
 
 ### Option C: the Android APK (native app)
 
-A signed APK is in `dist-apk/SwiftRide-release.apk`. It bundles the whole UI and talks to your PC's server.
+A signed APK is in `final-apk/SwiftRide-release.apk`. It bundles the whole UI and talks to your PC's server.
 
-1. Copy the APK to each Android phone (WhatsApp to yourself, USB, Google Drive, or `adb install dist-apk/SwiftRide-release.apk`).
+1. Copy the APK to each Android phone (WhatsApp to yourself, USB, Google Drive, or `adb install final-apk/SwiftRide-release.apk`).
 2. Open it; allow "Install unknown apps" when Android asks. It is signed with a development key, so Play Protect may show a warning the first time: choose "Install anyway".
 3. Start the server on the PC: `npm run serve`.
 4. On the login screen the app shows a **Server address** field, pre-filled with `http://192.168.1.9:4000` (the PC's Wi-Fi address when the APK was built). Phones must be on the same Wi-Fi. If the PC's address changed, type the new one. For testing away from home Wi-Fi, run `npm run tunnel` on the PC and enter the `https://...` address instead.
@@ -107,7 +107,7 @@ npm run android:build                       # bakes in 192.168.1.9:4000, builds 
 SWIFTRIDE_API_URL=http://10.0.0.5:4000 npm run android:build   # different default server
 ```
 
-Output: `client/android/app/build/outputs/apk/release/app-release.apk`. Copy it to `dist-apk/`. To open the project in Android Studio: `npm run android:open`.
+Output: `client/android/app/build/outputs/apk/release/app-release.apk`. Copy it to `final-apk/`. To open the project in Android Studio: `npm run android:open`.
 
 The signing key in `client/android/keystore/` is a throwaway development key (password `swiftride123`). Generate your own before publishing to the Play Store and keep it out of git (it is already ignored).
 

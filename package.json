@@ -22,7 +22,8 @@
     "push:keys": "npm --prefix server run push:keys",
     "start:server": "npm --prefix server start",
     "stop": "node scripts/stop.mjs",
-    "autostart": "node scripts/autostart.mjs"
+    "autostart": "node scripts/autostart.mjs",
+    "apk": "node scripts/apk.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
