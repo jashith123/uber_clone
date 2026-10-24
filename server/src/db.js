@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
+import { normalizePhone } from './phone.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +55,14 @@ function migrate(db) {
 
   ensureColumn('users', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn('users', 'is_blocked', 'INTEGER NOT NULL DEFAULT 0');
+
+  // Phones were free text before verification codes; store them one way so a
+  // password reset finds the account however the number was typed.
+  const fix = db.prepare('UPDATE users SET phone = ? WHERE id = ?');
+  for (const u of db.prepare("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone != '' AND phone NOT GLOB '+[0-9]*'").all()) {
+    const n = normalizePhone(u.phone);
+    if (n && n !== u.phone) fix.run(n, u.id);
+  }
 
   ensureColumn('driver_profiles', 'approval_status', "TEXT NOT NULL DEFAULT 'approved'");
   ensureColumn('driver_profiles', 'approval_note', 'TEXT');

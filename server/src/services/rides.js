@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { fetchRoutes, haversineKm as distanceKm } from './geo.js';
 import { computeFare } from './fare.js';
 import { surgeAt } from './surge.js';
-import { quotePromo, redeemPromo, autoPromoFor } from './promos.js';
+import { quotePromo, redeemPromo, releasePromo, autoPromoFor } from './promos.js';
 import { makePin, makeShareToken } from './safety.js';
 import { settleRide, settleCancellation, getWallet, commissionFor, round2 } from './payments.js';
 import * as dispatch from './dispatch.js';
@@ -477,6 +477,8 @@ export function cancelRide(user, rideId, reason) {
 
   dispatch.stopDispatch(rideId);
   settleCancellation(stmts.ride.get(rideId));
+  // The ride never happened, so any promo it used (the welcome offer included) is given back.
+  releasePromo(rideId);
 
   logEvent(rideId, user.id, 'cancelled', { by: user.role, reason, cancel_fee: cancelFee, driver_penalty: driverPenalty });
 

@@ -94,3 +94,14 @@ test('a driver on free rides needs no commission float for a cash ride', () => {
   db.prepare(`INSERT INTO ride_offers (ride_id, driver_id, wave, distance_km, expires_at) VALUES (?,?,1,1, datetime('now','+60 seconds'))`).run(id, fresh.id);
   assert.equal(rides.acceptRide(fresh, id).status, 'accepted', 'no float needed while rides are commission-free');
 });
+
+test('a cancelled first ride gives the welcome offer back', () => {
+  const c2 = Number(db.prepare('INSERT INTO users (role,name,email,password_hash) VALUES (?,?,?,?)').run('customer', 'C2', 'c2@t.com', hashPassword('x')).lastInsertRowid);
+  const rider2 = { id: c2, role: 'customer', name: 'C2' };
+  const id = Number(db.prepare("INSERT INTO rides (customer_id, vehicle_type, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, waypoints, route_geometry, distance_km, duration_min, fare_estimate, fare_breakdown, pin, share_token, discount, promo_code) VALUES (?, 'economy', 28.6, 77.2, 28.7, 77.3, '[]', '[]', 10, 15, 250, '{}', '1234', 'tok-rel', 50, 'FIRSTRIDE')").run(c2).lastInsertRowid);
+  promos.redeemPromo(rider2, 'FIRSTRIDE', id, 50); // what createRide does at booking
+  assert.match(promos.quotePromo(rider2, 'FIRSTRIDE', 300).reason || '', /already used/);
+  rides.cancelRide(rider2, id, 'changed plans');
+  assert.equal(promos.quotePromo(rider2, 'FIRSTRIDE', 300).ok, true, 'offer is back after the cancellation');
+  assert.equal(promos.autoPromoFor(rider2), 'FIRSTRIDE');
+});

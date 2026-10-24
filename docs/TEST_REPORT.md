@@ -172,7 +172,32 @@ Screenshots: `test-2026-10-21-driver-free-rides.png`, `test-2026-10-21-welcome-o
 
 Each rider now has one 4-digit trip PIN, made once for the account and used on every ride, shown on the Trips page ("Your ride PIN · the same on every ride") and on the ride screen. The driver still has to type it to start the trip. Checked: two calls to the profile return the same PIN; a new ride for Rahul carries it; screenshot `test-2026-10-21-ride-pin.png`. 46 tests pass.
 
-## 10. Known limits
+## 10. 24 October 2026: pending items closed
+
+Everything below was run on the local server with the demo accounts, phone-size browser (412 × 915), screenshots in `docs/screenshots/test-2026-10-24-*.png`.
+
+| Item | Checked | Result |
+|---|---|---|
+| Welcome offer comes back when a first ride is cancelled | `incentives.test.js` | Rahul's `FIRSTRIDE` is released on cancel and applies again on the next booking |
+| Driver cancel warning | Driver cancel dialog | The dialog says the penalty before the driver confirms |
+| Owner: money owed to drivers | Company tab | Split into drivers' own top-ups (floats) and earnings not yet paid out |
+| Rider phone hidden from the driver | Ride card, share page | Driver sees "Rider · ★ 4.8", calls go through the app; the share page has no phone |
+| Untested screens | Documents upload/approval, promo creation, surge zone, SOS from a ride, share page, admin on a phone | All work; `test-2026-10-24-sos.png`, `-share-page.png`, `-admin-phone.png` |
+| Phone verification at signup | `/signup` | "Send code" → code shown on screen in demo mode (`-signup-code.png`) → "verified" tag (`-signup-verified.png`) → account created, landed on the booking screen. Signing up again with the same number is refused |
+| Password reset | "Forgot password?" on the login page | Code sent to the account's number, new password saved (`-reset-code.png`, `-reset-done.png`); the old password returns 401, the new one logs in |
+| Vehicle icons | Rider map | All six online drivers drawn as flat black silhouettes with grey glass (`-vehicle-icons.png`, `-vehicle-gallery.png`) |
+| Sukhna Lake pin | Search "Sukhna" | The landmark now sits at the main gate on Uttar Marg, not in the water (`-sukhna-gate.png`) |
+| Automated tests | `npm test` in `server/` | 55 pass (6 new for the codes, 2 for the Google search mapping) |
+
+### Codes without an SMS account
+
+`SMS_PROVIDER=console` (the default) prints every code in the server log and, while the demo password is still `password`, returns it to the app so the screen shows "Demo mode: your code is 625050". Set `MSG91_*` or `TWILIO_*` keys to send real SMS; then the code arrives only by SMS. `REQUIRE_PHONE_OTP=0` turns the check off entirely.
+
+### Address search
+
+Nominatim (OpenStreetMap) knows landmarks and main roads but few house addresses or shops in India, which is why a home address often finds nothing. With `GOOGLE_MAPS_API_KEY` set the server searches Google Places instead (same results as Google Maps) and falls back to Nominatim if Google fails. Not tested live here: it needs your key.
+
+## 11. Known limits
 
 - The emulator's own GPS can be slow; on a real phone the location prompt and fix are normal Android behaviour.
 - In-app calls between two different networks (mobile data on both sides) use the free Open Relay TURN server by default; for production set your own `TURN_URLS`.

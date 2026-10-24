@@ -48,7 +48,9 @@ if (!env.JAVA_HOME) {
 
 run('node', ['scripts/build-android.mjs', url], { cwd: path.join(root, 'client'), env });
 run('npx', ['cap', 'sync', 'android'], { cwd: path.join(root, 'client'), env });
-run(process.platform === 'win32' ? 'gradlew.bat' : './gradlew', ['assembleRelease', '--no-daemon', '-q'], { cwd: path.join(root, 'client', 'android'), env });
+// Full path: Node on Windows no longer looks in the working directory for a bare command.
+const gradlew = path.join(root, 'client', 'android', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+run(gradlew, ['assembleRelease', '--no-daemon', '-q'], { cwd: path.join(root, 'client', 'android'), env });
 
 if (!existsSync(built)) { console.error('The build finished but no APK was produced.'); process.exit(1); }
 mkdirSync(outDir, { recursive: true });

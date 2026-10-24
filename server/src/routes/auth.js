@@ -3,17 +3,77 @@ import { db } from '../db.js';
 import { hashPassword, verifyPassword, signToken, requireAuth, loadUser, RENEW_AFTER_SECONDS } from '../auth.js';
 import { config } from '../config.js';
 import { getWallet } from '../services/payments.js';
+import { sendOtp, verifyOtp, phoneFromToken, normalizePhone } from '../services/otp.js';
 
 export const authRouter = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Errors thrown by the services carry an HTTP status; anything else is a 500. */
+function fail(res, err) {
+  if (err.status) return res.status(err.status).json({ error: err.message });
+  console.error(err);
+  return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+}
+
+/**
+ * POST /api/auth/otp/send { phone, purpose: 'signup' | 'reset' }
+ * Sends a 6-digit code to the phone. With the console provider the code is
+ * printed in the server log and, while the demo password is in use, returned
+ * as `demo_code` so the app can show it.
+ */
+authRouter.post('/otp/send', async (req, res) => {
+  try {
+    const { phone, purpose = 'signup' } = req.body || {};
+    const { demo_code, sent, expires_in_min } = await sendOtp(phone, purpose);
+    res.json({ ok: true, sent, expires_in_min, ...(demo_code ? { demo_code } : {}) });
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** POST /api/auth/otp/verify { phone, code, purpose } → { otp_token } for register / reset. */
+authRouter.post('/otp/verify', (req, res) => {
+  try {
+    const { phone, code, purpose = 'signup' } = req.body || {};
+    res.json(verifyOtp(phone, code, purpose));
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** POST /api/auth/reset { otp_token, password }  Sets a new password for the account on the verified phone. */
+authRouter.post('/reset', (req, res) => {
+  const { otp_token, password } = req.body || {};
+  const phone = phoneFromToken(otp_token, 'reset');
+  if (!phone) return res.status(400).json({ error: 'Verify your phone number first. The code is valid for 15 minutes.' });
+  if (String(password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const rows = db.prepare('SELECT id FROM users WHERE phone = ?').all(phone);
+  if (!rows.length) return res.status(404).json({ error: 'No account uses that number' });
+  if (rows.length > 1) return res.status(409).json({ error: 'More than one account uses this number. Contact support to reset the password.' });
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), rows[0].id);
+  res.json({ ok: true });
+});
+
 authRouter.post('/register', (req, res) => {
-  const { name, email, phone, password, role = 'customer', vehicle } = req.body || {};
+  const { name, email, password, role = 'customer', vehicle, otp_token } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Invalid email' });
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   if (!['customer', 'driver'].includes(role)) return res.status(400).json({ error: 'role must be customer or driver' });
+
+  // The phone is the verified one when verification is on; otherwise whatever was typed.
+  let phone = null;
+  if (config.requirePhoneOtp) {
+    phone = phoneFromToken(otp_token, 'signup');
+    if (!phone) return res.status(400).json({ error: 'Verify your mobile number first. The code is valid for 15 minutes.' });
+  } else if (req.body?.phone) {
+    phone = normalizePhone(req.body.phone);
+    if (!phone) return res.status(400).json({ error: 'Enter a valid mobile number, for example +91 98765 43210' });
+  }
+  if (phone && db.prepare('SELECT 1 FROM users WHERE phone = ?').get(phone)) {
+    return res.status(409).json({ error: 'That number already has an account. Log in, or reset the password.' });
+  }
 
   if (role === 'driver') {
     const v = vehicle || {};
@@ -32,7 +92,7 @@ authRouter.post('/register', (req, res) => {
   const isOwner = config.ownerEmails.includes(lower) ? 1 : 0;
   const isAdmin = isOwner || config.adminEmails.includes(lower) ? 1 : 0;
   const insert = db.prepare('INSERT INTO users (role, name, email, phone, password_hash, is_admin, is_owner) VALUES (?,?,?,?,?,?,?)');
-  const result = insert.run(role, String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hashPassword(password), isAdmin, isOwner);
+  const result = insert.run(role, String(name).trim(), String(email).trim(), phone, hashPassword(password), isAdmin, isOwner);
   const id = Number(result.lastInsertRowid);
   getWallet(id); // every account gets a wallet from day one
 
@@ -84,7 +144,7 @@ authRouter.post('/login', (req, res) => {
  */
 authRouter.get('/demo', (_req, res) => {
   const enabled = Boolean(db.prepare(`SELECT 1 FROM users WHERE email IN ('rider@demo.com', 'customer@demo.com')`).get());
-  res.json({ enabled, password: enabled && config.demoPassword === 'password' ? 'password' : null });
+  res.json({ enabled, password: enabled && config.demoPassword === 'password' ? 'password' : null, phone_otp: config.requirePhoneOtp });
 });
 
 /** Current user. Also hands back a fresh token once a day so sessions never lapse while the app is in use. */

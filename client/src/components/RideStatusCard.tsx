@@ -94,7 +94,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
             perspective === 'customer' && ride.cancel_policy?.customer_fee > 0
               ? `Late cancellation: ${signed(-ride.cancel_policy.customer_fee, ride.currency)} will be charged because the driver already ${ride.status === 'arrived' ? 'arrived' : 'accepted more than 2 minutes ago'}. It comes out of your wallet; if the wallet is short, the rest is added to your next ride.`
               : perspective === 'driver' && ride.cancel_policy?.driver_penalty > 0
-                ? `Cancelling now deducts ${signed(-ride.cancel_policy.driver_penalty, ride.currency)} from your earnings, and the rider goes back into the queue.`
+                ? `Cancelling now deducts ${signed(-ride.cancel_policy.driver_penalty, ride.currency)} from your earnings, and the rider goes back into the queue. If that leaves your wallet below the commission on a fare, cash rides stop coming to you until you add money.`
                 : null
           }
           onClose={() => setCancelling(false)}
@@ -177,7 +177,7 @@ export default function RideStatusCard({ ride, perspective, etaMin, dispatchNote
             )}
             {perspective === 'driver' && (
               <small>
-                {ride.customer?.phone || 'Rider'} · ★ {ride.customer?.rating != null ? `${ride.customer.rating.toFixed(1)} (${ride.customer.rating_count ?? 0})` : 'new rider'}
+                Rider · ★ {ride.customer?.rating != null ? `${ride.customer.rating.toFixed(1)} (${ride.customer.rating_count ?? 0})` : 'new rider'}
               </small>
             )}
           </div>

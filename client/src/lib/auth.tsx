@@ -27,6 +27,8 @@ interface RegisterInput {
   name: string;
   email: string;
   phone?: string;
+  /** Proof that the phone was verified by a code, from POST /auth/otp/verify. */
+  otp_token?: string;
   password: string;
   role: Role;
   vehicle?: { vehicle_type: string; make?: string; model?: string; color?: string; plate?: string };

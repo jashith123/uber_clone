@@ -871,19 +871,14 @@ h4 {
   100% { transform: scale(1.6); opacity: 0; }
 }
 .car-body {
-  width: 30px;
-  height: 60px;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.3));
+  width: 22px;
+  height: 44px;
+  color: var(--primary); /* every vehicle is drawn in the theme colour */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
   will-change: transform;
 }
 .car-body svg {
   display: block;
-}
-.car-body-fill {
-  fill: #6b6b6b;
-}
-.car-active .car-body-fill {
-  fill: #111;
 }
 
 /* ---------- status card ---------- */
@@ -2277,4 +2272,31 @@ table.data tr:hover td {
   gap: 2px;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* ---- signup: phone verification ---- */
+.row-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.row-inline input {
+  flex: 1;
+  min-width: 0;
+}
+.row-inline .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.otp-box {
+  margin: -4px 0 10px;
+}
+.otp-box .ok,
+.otp-box .muted {
+  margin: 0 0 8px;
+}
+.tag-ok {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  margin-left: 6px;
 }

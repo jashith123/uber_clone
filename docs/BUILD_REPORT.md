@@ -559,3 +559,35 @@ New `CarMarker` illustrations drawn in the style of ride-hailing apps: a gradien
 - `incentives.test.js`: the offer applies by itself, is capped at half the fare, applies once; the driver is paid on the gross; the first N rides have no commission and the next one does; no float needed during free rides. 45 tests in all.
 - Books reset once more, then through the apps: rider2 added ₹100, car.driver added ₹100, rider2's first ride Sector 17 → Elante: ₹130.52 − ₹50 = ₹80.52, paid entirely from the wallet, the ride closed with nothing to collect, the driver banner moved to "1 of 5 used". Owner's books afterwards: top-ups ₹200, online fares ₹80.52, promotions paid ₹50, commission waived ₹13.05, profit −₹50, owed to the driver ₹230.52 (his ₹100 plus the whole ₹130.52 fare), owed to the rider ₹19.48.
 - APK rebuilt with all of it.
+
+---
+
+## 23. Phase 12 (24 October 2026): the pending list, phone verification, Uber-style vehicle icons, Google address search
+
+### Pending items from the review, all done
+
+- A cancelled first ride gives the welcome offer back (`releasePromo` on cancel, test added).
+- The driver's cancel dialog warns about the penalty before he confirms.
+- The owner's "owed to drivers" is split into drivers' own top-ups and unpaid earnings.
+- The driver no longer sees the rider's phone digits; calls go through the app.
+- Documents upload and approval, promo creation, surge zones, SOS from a ride, the share page and the admin screen on a phone were all exercised.
+
+### Phone verification (`server/src/services/otp.js`)
+
+- Signing up needs a mobile number that received a 6-digit code (10-minute life, 5 tries, one use, a new request retires the old code). The code is traded for a 15-minute token that `POST /api/auth/register` requires; the phone stored on the account is the verified one, stored one way (`+919876543210`) and unique.
+- "Forgot password?" on the login page: code to the account's number, then a new password (`/forgot`, `POST /api/auth/reset`).
+- Providers: `console` (default: server log, and shown in the app while the demo password is in use), `msg91`, `twilio`. `REQUIRE_PHONE_OTP=0` switches the check off. New routes are rate-limited (15 codes an hour per address).
+- Existing phone numbers were normalised by a migration; the demo accounts keep their numbers (rider `+91 90000 00001`, and so on).
+
+### Vehicle icons
+
+Redrawn as flat top-down silhouettes in the theme colour (`currentColor`, so every class follows `--primary`), grey glass, a thin white halo and a light shadow, the way Uber draws cars on its map. Five outlines: scooter with rider, three-wheeler, hatchback (Go), sedan (Comfort), SUV (XL). Rendered at 22 × 44 px.
+
+### Address search
+
+`GEOCODER=google` + `GOOGLE_MAPS_API_KEY`: Places "Text Search (New)" for typed searches (biased to within 50 km of the rider, region `in`) and the Geocoding API for reverse lookups, mapped to the same place shape; Nominatim remains the fallback. Enable "Places API (New)" and "Geocoding API" on the key. Google's monthly free allowance covers a small operator; beyond that it is paid per 1,000 requests.
+
+### Also
+
+- The "Sukhna Lake" landmark moved from the middle of the lake to the main gate.
+- `otp.test.js` and `geocoder.test.js`; 55 tests pass. Client built, APK rebuilt into `final-apk/`.

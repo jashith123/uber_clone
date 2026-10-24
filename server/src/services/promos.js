@@ -71,6 +71,15 @@ export function quotePromo(user, rawCode, fare) {
   return { ok: true, code: p.code, discount, description: p.description };
 }
 
+/** A cancelled ride gives the code back, so a rider does not lose the welcome offer to a cancellation. */
+export function releasePromo(rideId) {
+  const row = db.prepare('SELECT code FROM promo_redemptions WHERE ride_id = ?').get(rideId);
+  if (!row) return false;
+  db.prepare('DELETE FROM promo_redemptions WHERE ride_id = ?').run(rideId);
+  db.prepare('UPDATE promo_codes SET used_count = MAX(0, used_count - 1) WHERE code = ? COLLATE NOCASE').run(row.code);
+  return true;
+}
+
 export function redeemPromo(user, code, rideId, discount) {
   if (!code || !discount) return;
   stmts.redeem.run(code, user.id, rideId, discount);

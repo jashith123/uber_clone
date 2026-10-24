@@ -16,7 +16,8 @@ const UPSTREAM_TIMEOUT_MS = 10_000;
  * become messages a rider can act on; the raw upstream reply goes to the log.
  */
 async function cachedJson(url, init) {
-  const hit = cache.get(url);
+  const key = init?.body ? `${url}#${init.body}` : url;
+  const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
   let res;
   try {
@@ -41,8 +42,60 @@ async function cachedJson(url, init) {
   }
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
   const value = await res.json();
-  cache.set(url, { value, expires: Date.now() + CACHE_TTL_MS });
+  cache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
   return value;
+}
+
+const useGoogle = () => config.geocoder.provider === 'google' && Boolean(config.geocoder.googleKey);
+
+/** Google Places "Text Search (New)" reply → our place shape. */
+export function placesFromGoogle(data) {
+  return (data?.places || [])
+    .filter((p) => Number.isFinite(p.location?.latitude) && Number.isFinite(p.location?.longitude))
+    .map((p) => ({
+      name: p.displayName?.text || p.formattedAddress?.split(',')[0] || 'Place',
+      label: p.formattedAddress || p.displayName?.text || '',
+      lat: p.location.latitude,
+      lng: p.location.longitude,
+      type: p.primaryType || p.types?.[0] || 'place',
+    }));
+}
+
+/** Google Geocoding reply (reverse) → our place shape. */
+export function placeFromGoogleReverse(data, lat, lng) {
+  const best = data?.results?.[0];
+  if (!best) return null;
+  // The first component that is not a plus code or a bare street number reads best as the name.
+  const named = best.address_components?.find((c) => !c.types.includes('plus_code') && !c.types.includes('street_number'));
+  return { label: best.formatted_address, name: named?.long_name || best.formatted_address.split(',')[0], lat, lng };
+}
+
+async function geocodeGoogle(query, { limit, near }) {
+  const g = config.geocoder;
+  const body = {
+    textQuery: query,
+    pageSize: Math.min(limit, 20),
+    regionCode: g.region,
+    languageCode: g.language,
+    ...(near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 50000 } } } : {}),
+  };
+  const data = await cachedJson('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': g.googleKey,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.primaryType,places.types',
+    },
+    body: JSON.stringify(body),
+  });
+  return placesFromGoogle(data);
+}
+
+async function reverseGoogle(lat, lng) {
+  const g = config.geocoder;
+  const params = new URLSearchParams({ latlng: `${lat},${lng}`, key: g.googleKey, language: g.language, region: g.region });
+  const data = await cachedJson(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+  return placeFromGoogleReverse(data, lat, lng);
 }
 
 export function haversineKm(a, b) {
@@ -57,6 +110,14 @@ export function haversineKm(a, b) {
 }
 
 export async function geocode(query, { limit = 6, near } = {}) {
+  if (useGoogle()) {
+    try {
+      const found = await geocodeGoogle(query, { limit, near });
+      if (found.length) return found;
+    } catch (e) {
+      console.warn(`google places failed, falling back to nominatim: ${e.message}`);
+    }
+  }
   const params = new URLSearchParams({
     q: query,
     format: 'jsonv2',
@@ -85,6 +146,14 @@ export async function geocode(query, { limit = 6, near } = {}) {
 }
 
 export async function reverseGeocode(lat, lng) {
+  if (useGoogle()) {
+    try {
+      const found = await reverseGoogle(lat, lng);
+      if (found) return found;
+    } catch (e) {
+      console.warn(`google geocoding failed, falling back to nominatim: ${e.message}`);
+    }
+  }
   const params = new URLSearchParams({ lat: String(lat), lon: String(lng), format: 'jsonv2', zoom: '18' });
   const data = await cachedJson(`${config.nominatimUrl}/reverse?${params}`);
   return {

@@ -228,6 +228,8 @@ adminRouter.get('/company', requireOwner, (_req, res) => {
     topups: companyTotal('topup'),
     paid_out: r2(-companyTotal('driver_payout')),
     owed_to_drivers: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance > 0`).s),
+    // Of that, money the drivers put in themselves (their commission float), as opposed to earnings.
+    driver_floats: r2(one(`SELECT COALESCE(SUM(t.amount),0) AS s FROM wallet_transactions t JOIN users u ON u.id = t.user_id WHERE u.role = 'driver' AND t.type = 'topup'`).s),
     owed_by_drivers: r2(-one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'driver' AND w.balance < 0`).s),
     owed_to_riders: r2(one(`SELECT COALESCE(SUM(w.balance),0) AS s FROM wallets w JOIN users u ON u.id = w.user_id WHERE u.role = 'customer' AND w.balance > 0`).s),
     // Cancellation fees riders still owe; collected with their next ride.

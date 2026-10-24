@@ -155,6 +155,8 @@ export default function Login() {
         </button>
         <p className="muted">
           New here? <Link to={`/signup?role=${role}`}>Create a {roleWord(role)} account</Link>
+          {' · '}
+          <Link to="/forgot">Forgot password?</Link>
         </p>
         <DemoAccounts
           key={server}

@@ -54,6 +54,16 @@ export const config = {
 
   osrmUrl: process.env.OSRM_URL || 'https://router.project-osrm.org',
   nominatimUrl: process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org',
+  // Address search. Nominatim (OpenStreetMap) is free but knows few house
+  // addresses and shops in India; Google Places finds them the way Google Maps
+  // does. Set GEOCODER=google and a key with "Places API (New)" and
+  // "Geocoding API" enabled. Nominatim remains the fallback if Google fails.
+  geocoder: {
+    provider: process.env.GEOCODER || (process.env.GOOGLE_MAPS_API_KEY ? 'google' : 'nominatim'), // nominatim | google
+    googleKey: process.env.GOOGLE_MAPS_API_KEY || '',
+    region: (process.env.GEOCODER_REGION || 'in').toLowerCase(), // country the results are biased to
+    language: process.env.GEOCODER_LANGUAGE || 'en',
+  },
   // Nominatim's usage policy asks for an identifying User-Agent with a contact.
   userAgent: process.env.USER_AGENT || `SwiftRide/0.3 (+${process.env.VAPID_SUBJECT || 'mailto:admin@swiftride.local'})`,
 
@@ -124,6 +134,19 @@ export const config = {
     firstRideOff: Number(process.env.FIRST_RIDE_OFF || 50),
     firstRideMaxPct: Number(process.env.FIRST_RIDE_MAX_PCT || 50),
     freeRidesPerDriver: Number(process.env.DRIVER_FREE_RIDES || 5),
+  },
+  // Phone verification. Signing up needs a code sent to the mobile number and
+  // a forgotten password is reset the same way. "console" prints the code in
+  // the server log (and shows it in the app while the demo password is in use);
+  // msg91 and twilio send a real SMS once their keys are set.
+  requirePhoneOtp: bool(process.env.REQUIRE_PHONE_OTP, true),
+  sms: {
+    provider: process.env.SMS_PROVIDER || 'console', // console | msg91 | twilio
+    msg91AuthKey: process.env.MSG91_AUTH_KEY || '',
+    msg91TemplateId: process.env.MSG91_TEMPLATE_ID || '',
+    twilioSid: process.env.TWILIO_SID || '',
+    twilioToken: process.env.TWILIO_TOKEN || '',
+    twilioFrom: process.env.TWILIO_FROM || '',
   },
   company: {
     name: process.env.COMPANY_NAME || 'SwiftRide',

@@ -268,3 +268,17 @@ CREATE TABLE IF NOT EXISTS company_ledger (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_company_ledger_type ON company_ledger(type);
+
+-- One-time codes sent by SMS to verify a phone at signup and to reset a
+-- password. See services/otp.js: 10-minute life, 5 tries, one use.
+CREATE TABLE IF NOT EXISTS otp_codes (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone      TEXT NOT NULL,
+  code       TEXT NOT NULL,
+  purpose    TEXT NOT NULL,              -- signup | reset
+  expires_at TEXT NOT NULL,
+  used       INTEGER NOT NULL DEFAULT 0,
+  attempts   INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes(phone, purpose, used, id);

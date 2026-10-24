@@ -30,6 +30,10 @@ export function createApp() {
   // address; everything else is behind a login.
   app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, skipSuccessful: true, message: 'Too many login attempts. Please wait 15 minutes and try again.' }));
   app.post('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: 'Too many new accounts from this network. Please try again later.' }));
+  // Codes cost money once a real SMS provider is on, and guessing one must stay slow.
+  app.post('/api/auth/otp/send', rateLimit({ windowMs: 60 * 60 * 1000, max: 15, message: 'Too many codes requested from this network. Please try again in an hour.' }));
+  app.post('/api/auth/otp/verify', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, skipSuccessful: true, message: 'Too many wrong codes. Please wait 15 minutes and try again.' }));
+  app.post('/api/auth/reset', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, skipSuccessful: true }));
   app.use('/api/auth', authRouter);
   app.use('/api/geo', geoRouter);
 

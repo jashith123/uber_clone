@@ -6,6 +6,7 @@ import BottomTabs from './components/BottomTabs';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import Wallet from './pages/Wallet';
 import Safety from './pages/Safety';
 import Admin from './pages/Admin';
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot" element={<ForgotPassword />} />
         {/* Public trip tracking: no account needed. */}
         <Route path="/t/:token" element={<TrackTrip />} />
 

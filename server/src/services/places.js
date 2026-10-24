@@ -12,7 +12,7 @@ export const COMMON_PLACES = [
   // Chandigarh
   { name: 'Sector 17 Plaza', label: 'Sector 17, Chandigarh', lat: 30.741, lng: 76.7822 },
   { name: 'Elante Mall', label: 'Industrial Area Phase 1, Chandigarh', lat: 30.7056, lng: 76.8013 },
-  { name: 'Sukhna Lake', label: 'Sector 1, Chandigarh', lat: 30.7421, lng: 76.8188 },
+  { name: 'Sukhna Lake', label: 'Main gate, Sector 1, Chandigarh', lat: 30.7409, lng: 76.8120 }, // the entrance on Uttar Marg, not the water
   { name: 'Rock Garden', label: 'Sector 1, Chandigarh', lat: 30.7525, lng: 76.8101 },
   { name: 'Rose Garden', label: 'Zakir Hussain Rose Garden, Sector 16, Chandigarh', lat: 30.7473, lng: 76.7868 },
   { name: 'PGIMER', label: 'Post Graduate Institute, Sector 12, Chandigarh', lat: 30.7649, lng: 76.7748 },

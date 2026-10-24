@@ -9,6 +9,7 @@
 import { db } from './db.js';
 import { config } from './config.js';
 import { hashPassword } from './auth.js';
+import { normalizePhone } from './phone.js';
 import { credit, getWallet } from './services/payments.js';
 
 const DRIVER_FLOAT = 200; // starting wallet for demo drivers
@@ -111,7 +112,7 @@ for (const d of demo) {
     continue;
   }
 
-  const r = insertUser.run(d.role, d.name, d.email, d.phone, hashPassword(passwordFor(d)), d.admin ? 1 : 0, d.owner ? 1 : 0);
+  const r = insertUser.run(d.role, d.name, d.email, normalizePhone(d.phone), hashPassword(passwordFor(d)), d.admin ? 1 : 0, d.owner ? 1 : 0);
   const id = Number(r.lastInsertRowid);
   getWallet(id);
   if (d.topup) credit(id, d.topup, 'topup', { note: 'Demo starting balance' });

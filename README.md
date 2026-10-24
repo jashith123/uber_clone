@@ -322,6 +322,8 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `ADMIN_EMAILS` | `admin@demo.com` | Accounts that get the admin panel |
 | `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` | empty | Push notifications (`npm run push:keys` writes them) |
 | `OSRM_URL` / `NOMINATIM_URL` | public servers | Point at your own for production |
+| `GOOGLE_MAPS_API_KEY` | — | Google-Maps-quality address search (house addresses, shops). Enable "Places API (New)" and "Geocoding API" on the key. Nominatim stays as the fallback |
+| `GEOCODER` / `GEOCODER_REGION` | `google` when a key is set, else `nominatim` / `in` | Which search provider to use and the country to bias results to |
 | `JWT_SECRET` | generated | Signs sessions. Left empty, a strong one is made on first start and kept next to the database |
 | `SEED_DEMO` | `1` | `0` skips the demo accounts on an empty database and creates only an admin |
 | `DEMO_PASSWORD` / `ADMIN_PASSWORD` | `password` | Replace the well-known demo password before sharing a public address; the login page stops printing it |
@@ -330,6 +332,10 @@ Copy `server/.env.example` to `server/.env`. Everything has a working default, s
 | `OWNER_EMAILS` | `owner@demo.com` | Accounts that get the Company tab: books, every wallet, driver payouts |
 | `ARRIVAL_RADIUS_KM` | `1` | How close the driver must be before "I've arrived" counts |
 | `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` | Open Relay | Relay for in-app calls between different networks; set your own for production |
+| `REQUIRE_PHONE_OTP` | `1` | Signing up needs a code sent to the mobile number; `0` turns the check off |
+| `SMS_PROVIDER` | `console` | `console` prints the code in the server log (and shows it in the app while the demo password is in use); `msg91` or `twilio` send a real SMS |
+| `MSG91_AUTH_KEY` / `MSG91_TEMPLATE_ID` | — | MSG91 OTP keys |
+| `TWILIO_SID` / `TWILIO_TOKEN` / `TWILIO_FROM` | — | Twilio keys and sender number |
 | `FIRST_RIDE_OFF` / `FIRST_RIDE_MAX_PCT` | `50` / `50` | Welcome offer: ₹50 off a rider's first ride, applied by itself, paid by the company, never more than half the fare |
 | `DRIVER_FREE_RIDES` | `5` | A driver keeps 100% of this many first rides; the app shows the count and when the 10% starts |
 
